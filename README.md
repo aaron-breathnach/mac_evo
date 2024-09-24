@@ -1,4 +1,4 @@
-This README outlines the steps involved in the analysis described by Walsh *et al.*. For queries, please contact [Aaron Walsh]<mailto:awalsh12@tcd.ie?subject=within-host%20evolution%20of%20MAC>.
+This README outlines the steps involved in the analysis described by Walsh *et al.*. For queries, please contact [Aaron Walsh](mailto:awalsh12@tcd.ie?subject=within-host%20evolution%20of%20MAC).
 
 ## Step 01: download the reference genome, Kraken2 database, and CARD database
 
