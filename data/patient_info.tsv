@@ -1,0 +1,21 @@
+patient	Gender	Nationality	Smoker	BMI	Bronchiectasis	HIV	Treated	Treatment
+P01	M	Nigerian	No	Normal	No	Yes	Yes	Ethambutol, Azithromycin
+P02	F	Irish	No	Increased	No	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P03	F	Irish	No	Reduced	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P04	F	German	No	Increased	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P05	F	Irish	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P06	F	Irish	Yes	Normal	Yes	No	Yes	Rifampicin, Ethambutol
+P07	F	Irish	Yes	Increased	Yes	No	No	Tazocin, Refused previous treatment
+P08	F	Irish	No	Unknown	Yes	No	No	NA
+P09	M	Filipino	Yes	Reduced	No	Yes	Yes	Rifampicin, Ethambutol, Clarithromycin, Amikacin, Levofloxacin
+P10	F	French	Yes	Normal	Yes	No	No	NA
+P11	F	Irish	Yes	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P12	F	French	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P13	F	Irish	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P14	M	Irish	Yes	Reduced	Yes	Yes	Yes	Ethambutol, Clarithromycin
+P15	M	Irish	No	Unknown	No	Yes	Yes	Ethambutol, Clarithromycin
+P16	M	Irish	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P17	F	Irish	No	Increased	Yes	No	No	Tazocin, Ciprofloxacin
+P18	F	Irish	Yes	Normal	No	No	No	Tazocin, Augmentin
+P19	M	Irish	Yes	Increased	No	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+P20	F	Irish	Yes	Reduced	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
