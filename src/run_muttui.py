@@ -18,3 +18,6 @@ def run_muttui(metadata='data/metadata.tsv'):
             for query in queries:
                 cmd = muttui.format(patient=patient, reference=reference, query=query)
                 f.write(cmd + '\n')
+
+if __name__ == '__main__':
+    run_muttui()

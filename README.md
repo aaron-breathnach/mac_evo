@@ -24,15 +24,15 @@ databases/GCF_009741445.1/GCF_009741445.1_ASM974144v1_genomic.fna \
 ## Step 03: run QC
 
 ```
-python src/run_qc.py && \
+python src/run_qc.py
 sh run_qc.sh
 ```
 
 ## Step 04: run *de novo* assembly using SPAdes and annotate the assemblies using Prokka
 
 ```
-python src/run_assembly_and_annotation.py && \
-sh run_spades.sh && \
+python src/run_assembly_and_annotation.py
+sh run_spades.sh
 sh run_prokka.sh
 ```
 
@@ -45,14 +45,14 @@ Rscript src/get_genome_lengths.R
 ## Step 06: run Snippy
 
 ```
-python src/run_snippy.py && \
+python src/run_snippy.py
 sh run_snippy.py
 ```
 
 ## Step 07: run whole genome alignment using snippy-core
 
 ```
-python src/run_snippy_core.py && \
+python src/run_snippy_core.py
 sh run_snippy_core.sh
 ```
 
@@ -65,7 +65,7 @@ docker run -v $PWD:/data staphb/snp-dists snp-dists snippy/core.aln > data/snp_d
 ## Step 09: build a phylogentic tree using Gubbins
 
 ```
-python src/run_run_gubbins.py && \
+python src/run_run_gubbins.py
 cp gubbins/mavium.final_tree.tre data/
 ```
 
@@ -78,9 +78,9 @@ Rscript src/run_fastbaps.R --fasta snippy/gubbins.aln --out_dir data
 ## Step 11: list patients containing multiple strains
 
 ```
-Rscript src/list_reinfected_patients.R 
---snp_dists data/snp_dists.tsv 
---metadata data/metadata.tsv 
+Rscript src/list_reinfected_patients.R \
+--snp_dists data/snp_dists.tsv \
+--metadata data/metadata.tsv \
 --threshold 20
 ```
 
@@ -93,7 +93,7 @@ python src/run_lofreq_common_reference.py
 ## Step 13: run SnpEff
 
 ```
-python src/run_snpeff.py data/metadata.tsv .lofreq.vcf.gz && \
+python src/run_snpeff.py data/metadata.tsv .lofreq.vcf.gz
 cp within_host_evolution/*/*.lofreq.snpeff.vcf data/lofreq/within_host/
 ```
 
@@ -122,11 +122,11 @@ Rscript src/list_card_mycobacterial_args.R --card data/card --out_dir data
 ## Step 17: run Panaroo on the genomes of the first isolate from each patient
 
 ```
-mkdir -p panaroo/input/ && \
-cp prokka/*/*.gff panaroo/input/ && \
-python src/run_panaroo.py && \
-sh run_panaroo.sh && \
-mkdir data/panaroo && \
+mkdir -p panaroo/input/
+cp prokka/*/*.gff panaroo/input/
+python src/run_panaroo.py
+sh run_panaroo.sh
+mkdir data/panaroo
 cp panaroo/gene_presence_absence.csv panaroo/gene_data.csv data/panaroo/
 ```
 
@@ -169,4 +169,6 @@ python src/run_mash.py
 ## Step 23: run MutTui
 
 ```
+python src/run_muttui.py
+sh run_muttui.sh
 ```
