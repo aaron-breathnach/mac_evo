@@ -4,3 +4,5 @@ __pycache__/
 .Rdata
 .Rhistory
 .Rproj.user/
+*gene_data.csv
+*gubbins.aln
