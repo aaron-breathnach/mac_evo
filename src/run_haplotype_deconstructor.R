@@ -6,12 +6,13 @@ library(tidyverse)
 
 source("src/get_vcf.R")
 
-.run_haplotype_deconstructor <- function(MAT, threshold = 90) {
+.run_haplotype_deconstructor <- function(mat, threshold) {
   
-  MAT <- MAT[rowSums(MAT) != 0,]
+  mat <- mat[rowSums(mat) != 0,]
   
   set.seed(123)
-  mat <- MAT[sample.int(nrow(MAT), 1000),]
+  mat <- mat[sample.int(nrow(mat), 1000),]
+  mat <- mat[, colSums(mat) > 0]
   
   res <- assessNumberHaplotyes(mat, 2:10, nReplicates = 3)
   
@@ -45,20 +46,32 @@ source("src/get_vcf.R")
   
 }
 
-run_haplotype_deconstructor <- function() {
+run_haplotype_deconstructor <- function(threshold = 80, present_study = FALSE) {
   
-  rds <- "data/haplotype_deconstructor.RDS"
+  if (present_study) {
+    rds <- "data/haplotype_deconstructor.irish_cohort.RDS"
+  } else {
+    rds <- "data/haplotype_deconstructor.RDS"
+  }
   
   if (!file.exists(rds)) {
     
     files <- list.files("data/lofreq/common_reference", full.names = TRUE)
     
-    patients <- readLines("data/reinfected_patients.txt")
+    # patients <- readLines("data/reinfected_patients.txt")
     
-    metadata <- read_delim("data/metadata.tsv")
+    metadata <- read_delim("data/metadata.tsv") %>%
+      filter(bracken_pass)
+    
+    if (present_study) {
+      
+      metadata <- metadata %>%
+        filter(study == "Present")
+      
+    }
     
     vcfs <- metadata %>%
-      filter(patient %in% patients) %>%
+      filter(bracken_pass) %>%
       mutate(vcf = sprintf("data/lofreq/common_reference/%s.lofreq.vcf.gz", isolate)) %>%
       pull(vcf)
     
@@ -77,11 +90,11 @@ run_haplotype_deconstructor <- function() {
       bind_rows() %>%
       pivot_wider(names_from = "GENOME", values_from = "AF", values_fill = 0)
     
-    MAT <- dat %>%
+    mat <- dat %>%
       column_to_rownames("SNP") %>%
       as.matrix()
     
-    res <- .run_haplotype_deconstructor(MAT)
+    res <- .run_haplotype_deconstructor(MAT, threshold)
     
     saveRDS(res, rds)
     

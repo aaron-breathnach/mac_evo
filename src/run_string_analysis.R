@@ -29,7 +29,7 @@ query_string_db <- function(dat, score, limit, prefix, out_dir) {
   
   dir.create(out_dir, FALSE, TRUE)
   
-  df <- dat[,1:2] %>%
+  df <- dat %>%
     setNames(c("name", "node_size"))
   
   gois <- unique(df$name)
@@ -45,11 +45,8 @@ query_string_db <- function(dat, score, limit, prefix, out_dir) {
   
   out <- sprintf("%s/%s.limit_%s.score_%s.tsv", out_dir, prefix, limit, score)
   
-  if (!file.exists(out)) {
-    
-    utils::download.file(string, out)
-    
-  }
+  utils::download.file(string, out)
+  
 }
 
 get_enrichment <- function(gois, out_dir) {
@@ -82,11 +79,13 @@ get_functional_annotations <- function(gene, out_dir) {
   
 }
 
-run_string_analysis <- function(sig_gen, score, limit, prefix, out_dir) {
+run_string_analysis <- function(gen_pos, score, limit, prefix, out_dir) {
   
-  dir.create(out_dir, TRUE, FALSE)
+  dir.create(out_dir, FALSE, TRUE)
   
-  dat <- read_delim(sig_gen) %>%
+  dat <- read_delim(gen_pos) %>%
+    filter(bonferroni < 0.05) %>%
+    select(gene_id_prokka, size) %>%
     setNames(c("gene", "size"))
   
   query_string_db(dat, score, limit, prefix, out_dir)
@@ -96,12 +95,11 @@ run_string_analysis <- function(sig_gen, score, limit, prefix, out_dir) {
   genes <- read_delim(filename) %>%
     select(3, 4) %>%
     pivot_longer(cols = everything()) %>%
+    filter(value %in% dat$gene) %>%
     pull(value) %>%
     unique()
   
   get_enrichment(genes, out_dir)
-  
-  purrr::map(dat$gene, function(x) get_functional_annotations(x, out_dir))
   
 }
 

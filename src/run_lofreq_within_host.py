@@ -1,7 +1,7 @@
 import argparse
 import os
 import pandas as pd
-import run_lofreq
+from run_lofreq import run_lofreq
 import utils
 
 cpu_count = os.cpu_count()
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         utils.copy(dictionary)
         cmd = run_variant_calling(dictionary, args.config, args.threads, args.rerun)
         cmds = cmds + cmd
-    with open('run_lofreq_within_host.sh'.format(args.method), 'w') as f:
+    with open('run_lofreq_within_host.sh', 'w') as f:
         for cmd in cmds:
             if len(cmd.replace(' ', '')) > 0:
                 f.write(cmd + '\n')

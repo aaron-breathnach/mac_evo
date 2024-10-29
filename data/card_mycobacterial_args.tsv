@@ -1,0 +1,66 @@
+gene	antibiotic
+16S	Amikacin;Capreomycin;capreomycin;Kanamycin;Streptomycin;Viomycin
+16rrnS	Amikacin;Kanamycin
+23S	Clarithromycin;Azithromycin;Capreomycin;capreomycin
+Rv0191	Pyrazinamide
+Rv0565	Ethionamide
+Rv0678	Bedaquiline
+Rv1667	Pyrazinamide
+Rv2535	Bedaquiline
+Rv2731	Pyrazinamide
+Rv3169	Pyrazinamide
+aftA	Ethambutol
+ahpC	Isoniazid
+ald	D-cycloserine
+alr	D-cycloserine
+clpC1	Pyrazinamide
+ddlA	D-cycloserine
+ddn	Multiple antibiotics
+eccB5	Fluoroquinolones
+eccC5	Fluoroquinolones
+eis	Kanamycin
+embA	Ethambutol
+embB	Ethambutol;Rifampicin
+embC	Ethambutol
+embR	Ethambutol
+ethA	Isoniazid;Perchlozone;Prothionamide;Ethionamide
+fabG1	Ethionamide;Isoniazid
+folC	Para-aminosalicylic acid
+folP	Dapsone
+furA	Isoniazid
+gidB	Streptomycin
+gpsI	Pyrazinamide
+gyrA	Fluoroquinolones
+gyrB	Fluoroquinolones
+inbR	Isoniazid
+inhA	Ethionamide;Isoniazid
+iniA	Ethambutol
+iniB	Ethambutol
+iniC	Ethambutol
+kasA	Isoniazid
+katG	Isoniazid;Prothionamide
+mas	Pyrazinamide
+mmaA3	Isoniazid
+mshA	Isoniazid;Prothionamide
+mshC	Ethionamide;Isoniazid
+murA	Fosfomycin
+mymA	Isoniazid
+nat	Isoniazid
+ndh	Isoniazid
+nudC	Ethionamide;Isoniazid
+pncA	Pyrazinamide
+ponA1	Rifabutin
+ppsC	Pyrazinamide
+ppsD	Pyrazinamide
+ribD	Para-aminosalicylic acid
+rpoA	Rifampicin
+rpoB	Rifampicin
+rpoC	Rifampicin
+rpsA	Pyrazinamide
+rpsL	Streptomycin
+sigI	Isoniazid
+tap	Ethambutol & Capreomycin;Multiple antibiotics;Streptomycin
+thyA	Para-aminosalicylic acid
+tlyA	Aminoglycosides
+ubiA	Ethambutol
+whib7	Streptomycin;Kanamycin
