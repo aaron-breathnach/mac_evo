@@ -1,6 +1,15 @@
 library(tidyverse)
 
-make_manhattan_plot <- function(gen_pos, p_adj) {
+get_component_membership <- function(x) {
+  
+  igraph::components(x)$membership %>%
+    data.frame() %>%
+    rownames_to_column("name") %>%
+    dplyr::rename(membership = 2)
+  
+}
+
+make_figure_4a <- function(gen_pos, p_adj) {
   
   p_inp <- gen_pos %>%
     select(gene_id_prokka, pos, p, size, all_of(p_adj)) %>%
@@ -38,81 +47,7 @@ make_manhattan_plot <- function(gen_pos, p_adj) {
   
 }
 
-viz_dn_ds <- function(gen_pos, amr_gen) {
-
-  p_inp <- gen_pos %>%
-    mutate(dn_ds = dn / ds) %>%
-    arrange(desc(dn_ds)) %>%
-    filter(dn_ds > 1 & !is.infinite(dn_ds)) %>%
-    filter(p < 0.05) %>%
-    filter(gene_id_prokka %in% amr_gen$gene) %>%
-    mutate(group = case_when(
-      bonferroni < 0.05 ~ "Bonferroni adjusted *p*-value < 0.05",
-      fdr < 0.05 & bonferroni > 0.05 ~ "FDR adjusted *p*-value < 0.05",
-      p < 0.05 & fdr > 0.05 ~ "Unadjusted *p*-value < 0.05"
-    ))
-  
-  x_intercept_1 <- p_inp %>%
-    filter(fdr < 0.05) %>%
-    filter(p == max(p)) %>%
-    pull(p)
-  
-  x_intercept_2 <- p_inp %>%
-    filter(bonferroni < 0.05) %>%
-    filter(p == max(p)) %>%
-    pull(p)
-  
-  x_intercepts <- c(x_intercept_1, x_intercept_2) %>%
-    purrr::map(function(x) -log10(x)) %>%
-    unlist()
-    
-  ggplot(p_inp, aes(x = -log10(p), y = reorder(gene_id_prokka, -log10(p)))) +
-    geom_rect(
-      aes(
-        xmin = min(-log10(p)),
-        xmax = -log10(x_intercept_1),
-        ymin = 0,
-        ymax = Inf
-      ),
-      fill = colorspace::lighten("lightgrey", 0.25)
-    ) +
-    geom_rect(
-      aes(
-        xmin = -log10(x_intercept_1),
-        xmax = -log10(x_intercept_2),
-        ymin = 0,
-        ymax = Inf
-      ),
-      fill = colorspace::lighten("lightgrey", 0.75)
-    ) +
-    geom_vline(xintercept = x_intercepts, linetype = "dashed", colour = "black") +
-    geom_point(aes(size = size, fill = dn_ds),
-               pch = 21,
-               colour = "black",
-               show.legend = TRUE) +
-    theme_classic(base_size = 12.5) +
-    theme(axis.title.x = ggtext::element_markdown(),
-          axis.title.y = element_text(face = "bold"),
-          axis.text.y = element_text(face = "italic"),
-          legend.title = ggtext::element_markdown()) +
-    labs(x = "**-log<sub>10</sub>(*p*-value)**",
-         y = "Gene",
-         size = "**Number of patients**",
-         fill = "***d*<sub>N</sub>/*d*<sub>S</sub> ratio**") +
-    scale_fill_distiller(palette = "Blues")
-  
-}
-
-get_component_membership <- function(x) {
-  
-  igraph::components(x)$membership %>%
-    data.frame() %>%
-    rownames_to_column("name") %>%
-    dplyr::rename(membership = 2)
-  
-}
-
-make_network_plot <- function(sig_gen, network) {
+make_figure_4b <- function(sig_gen, network) {
   
   df <- sig_gen %>%
     select(gene_id_prokka, size) %>%
@@ -178,21 +113,68 @@ make_network_plot <- function(sig_gen, network) {
   
 }
 
-make_figure_4a <- function(gen_pos, p_adj) {
-  
-  make_manhattan_plot(gen_pos, p_adj)
-  
-}
-
-make_figure_4b <- function(sig_gen, network) {
-  
-  make_network_plot(sig_gen, network)
-
-}
-
 make_figure_4c <- function(gen_pos, amr_gen) {
+
+  p_inp <- gen_pos %>%
+    mutate(dn_ds = dn / ds) %>%
+    arrange(desc(dn_ds)) %>%
+    filter(dn_ds > 1 & !is.infinite(dn_ds)) %>%
+    filter(p < 0.05) %>%
+    filter(gene_id_prokka %in% amr_gen$gene) %>%
+    mutate(group = case_when(
+      bonferroni < 0.05 ~ "Bonferroni adjusted *p*-value < 0.05",
+      fdr < 0.05 & bonferroni > 0.05 ~ "FDR adjusted *p*-value < 0.05",
+      p < 0.05 & fdr > 0.05 ~ "Unadjusted *p*-value < 0.05"
+    ))
   
-  viz_dn_ds(gen_pos, amr_gen)
+  x_intercept_1 <- p_inp %>%
+    filter(fdr < 0.05) %>%
+    filter(p == max(p)) %>%
+    pull(p)
+  
+  x_intercept_2 <- p_inp %>%
+    filter(bonferroni < 0.05) %>%
+    filter(p == max(p)) %>%
+    pull(p)
+  
+  x_intercepts <- c(x_intercept_1, x_intercept_2) %>%
+    purrr::map(function(x) -log10(x)) %>%
+    unlist()
+    
+  ggplot(p_inp, aes(x = -log10(p), y = reorder(gene_id_prokka, -log10(p)))) +
+    geom_rect(
+      aes(
+        xmin = min(-log10(p)),
+        xmax = -log10(x_intercept_1),
+        ymin = 0,
+        ymax = Inf
+      ),
+      fill = colorspace::lighten("lightgrey", 0.25)
+    ) +
+    geom_rect(
+      aes(
+        xmin = -log10(x_intercept_1),
+        xmax = -log10(x_intercept_2),
+        ymin = 0,
+        ymax = Inf
+      ),
+      fill = colorspace::lighten("lightgrey", 0.75)
+    ) +
+    geom_vline(xintercept = x_intercepts, linetype = "dashed", colour = "black") +
+    geom_point(aes(size = size, fill = dn_ds),
+               pch = 21,
+               colour = "black",
+               show.legend = TRUE) +
+    theme_classic(base_size = 12.5) +
+    theme(axis.title.x = ggtext::element_markdown(),
+          axis.title.y = element_text(face = "bold"),
+          axis.text.y = element_text(face = "italic"),
+          legend.title = ggtext::element_markdown()) +
+    labs(x = "**-log<sub>10</sub>(*p*-value)**",
+         y = "Gene",
+         size = "**Number of patients**",
+         fill = "***d*<sub>N</sub>/*d*<sub>S</sub> ratio**") +
+    scale_fill_distiller(palette = "Blues")
   
 }
 

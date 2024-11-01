@@ -105,7 +105,7 @@ plot_timelines <- function(pid, timelines) {
   
 }
 
-make_figure_5 <- function() {
+make_figure_s4 <- function() {
   
   patient_metadata <- read_delim("data/patient_info.tsv") %>%
     filter(Treated == "Yes") %>%
@@ -117,7 +117,7 @@ make_figure_5 <- function() {
   
   args <- read_delim("data/card_mycobacterial_args.tsv")
   
-  dat <- read_delim("data/minor_vafs/filtered_vcfs.txt") %>%
+  dat <- read_delim("data/filtered_variants.tsv") %>%
     filter(GENOME %in% isolate_metadata$isolate)
   
   dat$allele_frequency <- dat$INFO %>%
@@ -183,19 +183,11 @@ make_figure_5 <- function() {
     select(1, 3, 2) %>%
     rename(date = 3)
   
-  treatments <- readxl::read_excel("data/MAC Excel.xlsx") %>%
-    select(Number, Treated) %>%
-    mutate(patient = paste0("P", str_pad(Number, 3, "left", "0"))) %>%
-    select(3, 2) %>%
+  treatments <- patient_metadata %>%
+    select(patient, `Start of treatment`, `End of treatment`) %>%
     filter(patient %in% rownames(DF)) %>%
-    mutate(Treated = str_replace(Treated, "Yes - ", "")) %>%
-    separate_wider_delim(Treated, " - ", names = c("start", "end")) %>%
-    mutate(start = ifelse(patient == "P003", "January 2009", start)) %>%
-    mutate(end = ifelse(patient == "P003", "January 2013", end)) %>%
-    mutate(start = lubridate::mdy(start)) %>%
-    mutate(end = lubridate::mdy(end)) %>%
     pivot_longer(!patient, names_to = "event", values_to = "date") %>%
-    mutate(event = recode(event, "start" = "Start of treatment", "end" = "End of treatment"))
+    mutate(date = lubridate::dmy(date))
   
   timelines <- rbind(acquisitions, treatments, collections) %>%
     arrange(date) %>%

@@ -1,6 +1,6 @@
 library(tidyverse)
 
-make_figure_s2 <- function() {
+make_figure_s3 <- function() {
   
   dat <- read_delim("data/muttui_combined.csv") %>%
     mutate(group = Substitution %>%

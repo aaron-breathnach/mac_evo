@@ -49,10 +49,17 @@ calc_perc_pers <- function(pid, metadata, dat) {
   
 }
 
-make_figure_s3 <- function() {
+make_figure_s5 <- function() {
   
   metadata <- read_delim("data/metadata.tsv") %>%
     filter(bracken_pass & !multiple_carriage)
+  
+  patients <- metadata %>%
+    filter(time_from_diagnosis > 0) %>%
+    group_by(patient) %>%
+    tally() %>%
+    filter(n > 1) %>%
+    pull(patient)
   
   dat <- read_delim("data/filtered_variants.tsv") %>%
     filter(GENOME %in% metadata$isolate & grepl("missense", INFO))

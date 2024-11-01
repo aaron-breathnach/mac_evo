@@ -2,37 +2,6 @@ library(tidyverse)
 
 `%<+%` <- ggtree::`%<+%`
 
-figure_2a <- function(fastbaps, metadata, pal) {
-  
-  dat <- inner_join(fastbaps, metadata, by = "isolate") %>%
-    mutate(lineage = str_pad(level_1, 2, "left", "0"))
-  
-  p_inp <- dat %>%
-    group_by(lineage, country) %>%
-    tally() %>%
-    ungroup()
-  
-  x_ord <- p_inp %>%
-    group_by(lineage) %>%
-    summarise(n = sum(n)) %>%
-    arrange(desc(n)) %>%
-    pull(lineage)
-  
-  p_inp$lineage <- factor(p_inp$lineage, levels = x_ord)
-  
-  p_inp$country <- factor(p_inp$country, levels = c("Ireland", "UK", "Germany"))
-  
-  ggplot(p_inp, aes(x = lineage, y = n)) +
-    geom_bar(aes(fill = country), stat = "identity", colour = "black", show.legend = FALSE) +
-    scale_fill_manual(values =  pal) +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-    theme_classic(base_size = 12.5) +
-    theme(axis.title = element_text(face = "bold"),
-          legend.title = element_text(face = "bold")) +
-    labs(x = "fastbaps lineage", y = "Number of genomes", fill = "Country")
-  
-}
-
 find_clades_with_shared_strains <- function(tree, snp_dists, metadata) {
   
   strains <- snp_dists %>%
@@ -65,62 +34,41 @@ find_clades_with_shared_strains <- function(tree, snp_dists, metadata) {
   clusters %>%
     inner_join(cluster_to_clade, by = "cluster") %>%
     select(isolate, clade)
-   
-}
-
-plot_tree <- function(tree, metadata, fastbaps, snp_dists, pal, save = FALSE) {
-  
-  clades <- find_clades_with_shared_strains(tree, snp_dists, metadata)
-  
-  ann_1 <- metadata %>%
-    select(isolate) %>%
-    left_join(clades, by = "isolate") %>%
-    rename(Cluster = 2)
-  
-  ann_2 <- metadata %>%
-    select(isolate, country) %>%
-    rename(Country = 2) %>%
-    column_to_rownames("isolate")
-  
-  ann_3 <- read_delim(FASTBAPS) %>%
-    select(1, 2) %>%
-    dplyr::rename(isolate = 1, Lineage = 2) %>%
-    mutate(Lineage = str_pad(Lineage, 2, "left", "0")) %>%
-    column_to_rownames("isolate")
-  
-  p0 <- ggtree::ggtree(tree, layout = "circular")
-  
-  p1 <- p0 %<+%
-    ann_1 +
-    ggtree::geom_tippoint(
-      aes(colour = Cluster, subset = !is.na(Cluster)),
-      size = 3
-    ) +
-    scale_colour_brewer(palette = "Dark2") +
-    theme(legend.title = element_text(face = "bold"))
-  
-  p2 <- ggtree::gheatmap(p1, ann_2, offset = 1, width = .1, colnames = F, color = NA) +
-    scale_fill_manual(values = pal) +
-    theme(legend.title = element_text(face = "bold")) +
-    labs(fill = "Study") +
-    ggnewscale::new_scale_fill()
-  
-  p3 <- ggtree::gheatmap(p2, ann_3, offset = .375 * 1e4, width = .1, colnames = F, color = NA) +
-    scale_fill_viridis_d() +
-    theme(legend.title = element_text(face = "bold")) +
-    labs(fill = "fastbaps lineage")  +
-    ggnewscale::new_scale_fill() +
-    guides(fill = guide_legend(ncol = 3))
-  
-  p3 +
-    theme(
-      legend.box = "horizontal",
-      legend.position = c(1.05, 0.75)
-    )
   
 }
 
-viz_putative_transmission_clusters <- function(metadata, snp_dists, pal) {
+make_figure_2a <- function(fastbaps, metadata, pal) {
+  
+  dat <- inner_join(fastbaps, metadata, by = "isolate") %>%
+    mutate(lineage = str_pad(level_1, 2, "left", "0"))
+  
+  p_inp <- dat %>%
+    group_by(lineage, country) %>%
+    tally() %>%
+    ungroup()
+  
+  x_ord <- p_inp %>%
+    group_by(lineage) %>%
+    summarise(n = sum(n)) %>%
+    arrange(desc(n)) %>%
+    pull(lineage)
+  
+  p_inp$lineage <- factor(p_inp$lineage, levels = x_ord)
+  
+  p_inp$country <- factor(p_inp$country, levels = c("Ireland", "UK", "Germany"))
+  
+  ggplot(p_inp, aes(x = lineage, y = n)) +
+    geom_bar(aes(fill = country), stat = "identity", colour = "black", show.legend = FALSE) +
+    scale_fill_manual(values =  pal) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+    theme_classic(base_size = 12.5) +
+    theme(axis.title = element_text(face = "bold"),
+          legend.title = element_text(face = "bold")) +
+    labs(x = "fastbaps lineage", y = "Number of genomes", fill = "Country")
+  
+}
+
+make_figure_2b <- function(metadata, snp_dists, pal) {
   
   metadata <- metadata %>%
     select(isolate, patient, country) %>%
@@ -251,6 +199,58 @@ viz_putative_transmission_clusters <- function(metadata, snp_dists, pal) {
   
 }
 
+make_figure_2c <- function(tree, metadata, fastbaps, snp_dists, pal, save = FALSE) {
+  
+  clades <- find_clades_with_shared_strains(tree, snp_dists, metadata)
+  
+  ann_1 <- metadata %>%
+    select(isolate) %>%
+    left_join(clades, by = "isolate") %>%
+    rename(Cluster = 2)
+  
+  ann_2 <- metadata %>%
+    select(isolate, country) %>%
+    rename(Country = 2) %>%
+    column_to_rownames("isolate")
+  
+  ann_3 <- fastbaps %>%
+    select(1, 2) %>%
+    dplyr::rename(isolate = 1, Lineage = 2) %>%
+    mutate(Lineage = str_pad(Lineage, 2, "left", "0")) %>%
+    column_to_rownames("isolate")
+  
+  p0 <- ggtree::ggtree(tree, layout = "circular")
+  
+  p1 <- p0 %<+%
+    ann_1 +
+    ggtree::geom_tippoint(
+      aes(colour = Cluster, subset = !is.na(Cluster)),
+      size = 3
+    ) +
+    scale_colour_brewer(palette = "Dark2") +
+    theme(legend.title = element_text(face = "bold"))
+  
+  p2 <- ggtree::gheatmap(p1, ann_2, offset = 1, width = .1, colnames = F, color = NA) +
+    scale_fill_manual(values = pal) +
+    theme(legend.title = element_text(face = "bold")) +
+    labs(fill = "Study") +
+    ggnewscale::new_scale_fill()
+  
+  p3 <- ggtree::gheatmap(p2, ann_3, offset = .375 * 1e4, width = .1, colnames = F, color = NA) +
+    scale_fill_viridis_d() +
+    theme(legend.title = element_text(face = "bold")) +
+    labs(fill = "fastbaps lineage")  +
+    ggnewscale::new_scale_fill() +
+    guides(fill = guide_legend(ncol = 3))
+  
+  p3 +
+    theme(
+      legend.box = "horizontal",
+      legend.position = c(1.05, 0.75)
+    )
+  
+}
+
 make_figure_2 <- function() {
   
   par(mar = c(1, 1, 1, 1))
@@ -270,9 +270,9 @@ make_figure_2 <- function() {
     "UK" = "#012169"
   )
   
-  p_a <- figure_2a(fastbaps, metadata, pal)
-  p_b <- viz_putative_transmission_clusters(metadata, snp_dists, pal)
-  p_c <- plot_tree(tree, metadata, fastbaps, snp_dists, pal)
+  p_a <- make_figure_2a(fastbaps, metadata, pal)
+  p_b <- make_figure_2b(metadata, snp_dists, pal)
+  p_c <- make_figure_2c(tree, metadata, fastbaps, snp_dists, pal)
   
   part_1 <- cowplot::plot_grid(plot.new(), p_a, plot.new(),
                                nrow = 1,

@@ -1,21 +1,21 @@
-patient	Gender	Nationality	Smoker	BMI	Bronchiectasis	HIV	Treated	Treatment
-P01	M	Nigerian	No	Normal	No	Yes	Yes	Ethambutol, Azithromycin
-P02	F	Irish	No	Increased	No	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P03	F	Irish	No	Reduced	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P04	F	German	No	Increased	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P05	F	Irish	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P06	F	Irish	Yes	Normal	Yes	No	Yes	Rifampicin, Ethambutol
-P07	F	Irish	Yes	Increased	Yes	No	No	Tazocin, Refused previous treatment
-P08	F	Irish	No	Unknown	Yes	No	No	NA
-P09	M	Filipino	Yes	Reduced	No	Yes	Yes	Rifampicin, Ethambutol, Clarithromycin, Amikacin, Levofloxacin
-P10	F	French	Yes	Normal	Yes	No	No	NA
-P11	F	Irish	Yes	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P12	F	French	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P13	F	Irish	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P14	M	Irish	Yes	Reduced	Yes	Yes	Yes	Ethambutol, Clarithromycin
-P15	M	Irish	No	Unknown	No	Yes	Yes	Ethambutol, Clarithromycin
-P16	M	Irish	No	Normal	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P17	F	Irish	No	Increased	Yes	No	No	Tazocin, Ciprofloxacin
-P18	F	Irish	Yes	Normal	No	No	No	Tazocin, Augmentin
-P19	M	Irish	Yes	Increased	No	No	Yes	Rifampicin, Ethambutol, Clarithromycin
-P20	F	Irish	Yes	Reduced	Yes	No	Yes	Rifampicin, Ethambutol, Clarithromycin
+patient	Gender	Nationality	Smoker	BMI	Bronchiectasis	HIV	Treated	Treatment	Start of treatment	End of treatment
+P01	M	Nigerian	No	Normal	No	Yes	Yes	"Ethambutol, Azithromycin"	NA	NA
+P02	F	Irish	No	Increased	No	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/01/2008	01/01/2009
+P03	F	Irish	No	Reduced	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/01/2009	01/01/2013
+P04	F	German	No	Increased	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/02/2015	01/04/2015
+P05	F	Irish	No	Normal	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/04/2012	15/04/2012
+P06	F	Irish	Yes	Normal	Yes	No	Yes	"Rifampicin, Ethambutol"	01/03/2010	01/07/2010
+P07	F	Irish	Yes	Increased	Yes	No	No	"Tazocin, Refused previous treatment"	NA	NA
+P08	F	Irish	No	Unknown	Yes	No	No	NA	NA	NA
+P09	M	Filipino	Yes	Reduced	No	Yes	Yes	"Rifampicin, Ethambutol, Clarithromycin, Amikacin, Levofloxacin"	01/07/2018	01/12/2019
+P10	F	French	Yes	Normal	Yes	No	No	NA	NA	NA
+P11	F	Irish	Yes	Normal	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/07/2015	01/01/2016
+P12	F	French	No	Normal	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/09/2018	01/11/2019
+P13	F	Irish	No	Normal	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/09/2008	01/09/2009
+P14	M	Irish	Yes	Reduced	Yes	Yes	Yes	"Ethambutol, Clarithromycin"	01/07/2008	01/03/2009
+P15	M	Irish	No	Unknown	No	Yes	Yes	"Ethambutol, Clarithromycin"	01/12/2008	01/08/2011
+P16	M	Irish	No	Normal	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/01/2017	01/02/2017
+P17	F	Irish	No	Increased	Yes	No	No	"Tazocin, Ciprofloxacin"	NA	NA
+P18	F	Irish	Yes	Normal	No	No	No	"Tazocin, Augmentin"	NA	NA
+P19	M	Irish	Yes	Increased	No	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/08/2009	01/09/2013
+P20	F	Irish	Yes	Reduced	Yes	No	Yes	"Rifampicin, Ethambutol, Clarithromycin"	01/03/2010	01/11/2013

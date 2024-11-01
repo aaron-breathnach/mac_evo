@@ -4,7 +4,10 @@ source("src/compare_first_vs_last.R")
 
 make_figure_s2 <- function() {
   
-  tmp <-  compare_first_vs_last(haplotype_abundance, metadata, threshold = 0, long = FALSE)
+  relab <- readRDS("data/haplotype_deconstructor.RDS")[[2]]
+  metadata <- read_delim("data/metadata.tsv")
+  
+  tmp <-  compare_first_vs_last(relab, metadata, threshold = 0, long = FALSE)
   
   dat <- tmp %>%
     select(patient, persist) %>%

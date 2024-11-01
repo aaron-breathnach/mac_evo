@@ -1,0 +1,11 @@
+R.utils::sourceDirectory("make_figures")
+
+make_figure_1()
+make_figure_2()
+make_figure_3()
+make_figure_4()
+make_figure_s1()
+make_figure_s2()
+make_figure_s3()
+make_figure_s4()
+make_figure_s5()

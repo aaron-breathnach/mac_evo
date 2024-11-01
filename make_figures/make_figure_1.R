@@ -2,54 +2,6 @@ library(tidyverse)
 
 `%<+%` <- ggtree::`%<+%`
 
-run_umap <- function(snp_dists, metadata) {
-  
-  snp_dists <- snp_dists[rownames(snp_dists) %in% metadata$isolate,
-                         colnames(snp_dists) %in% metadata$isolate]
-  
-  set.seed(321)
-  snps_umap <- umap::umap(snp_dists)
-  
-  points <- snps_umap$layout %>%
-    as.data.frame() %>%
-    rownames_to_column("isolate") %>%
-    rename(UMAP1 = 2, UMAP2 = 3) %>%
-    filter(isolate != "Reference") %>%
-    inner_join(metadata, by = "isolate")
-  
-  return(points)
-  
-}
-
-make_umap <- function(snp_dists, pids, metadata, pal) {
-  
-  fastbaps <- read_delim("data/fastbaps.tsv") %>%
-    mutate(lineage = str_pad(level_1, 2, "left", "0"))
-  
-  inp <- snp_dists %>%
-    rename(isolate = 1) %>%
-    column_to_rownames("isolate")
-  
-  p_inp <- run_umap(inp, metadata) %>%
-    inner_join(fastbaps, by = "isolate")
-  
-  ggplot(p_inp, aes(x = UMAP1, y = UMAP2)) +
-    geom_point(
-      aes(fill = lineage),
-      pch = 21,
-      colour = "black",
-      size = 3
-    ) +
-    theme_classic() +
-    theme(
-      axis.title = element_text(face = "bold"),
-      legend.title = element_text(face = "bold")
-    ) +
-    labs(fill = "fastbaps lineage") +
-    scale_fill_brewer(palette = "Set3")
-  
-}
-
 get_jumps <- function(pid, metadata, snp_dists) {
   
   meta <- metadata %>%
@@ -98,7 +50,61 @@ get_jumps <- function(pid, metadata, snp_dists) {
   
 }
 
-make_fastbaps_bar_chart <- function() {
+make_figure_1a <- function() {
+  
+  metadata <- read_delim("data/metadata.tsv") %>%
+    filter(bracken_perc > 70 & study == "Present")
+  
+  ref_gen <- read_delim("data/reference_genomes.tsv") %>%
+    select(1, 3) %>%
+    rename(subspecies = 1, reference = 2) %>%
+    mutate(subspecies = recode(
+      subspecies,
+      "Mycobacterium avium subsp. avium" = "*M. avium* subsp. *avium*",
+      "Mycobacterium avium subsp. hominissuis" = "*M. avium* subsp. *hominissuis*"
+    )) %>%
+    mutate(reference = reference %>%
+             basename() %>%
+             str_replace(".fna.*", ""))
+  
+  cols <- c("query", metadata$isolate, ref_gen$reference)
+  
+  mash_dists <- read_delim("data/mash.dist.txt") %>%
+    rename(query = 1) %>%
+    setNames(str_replace(basename(names(.)), ".fna.*", "")) %>%
+    mutate(query = str_replace(basename(query), ".fna.*", "")) %>%
+    filter(query %in% metadata$isolate) %>%
+    select(query, all_of(cols))
+  
+  subspecies <- mash_dists %>%
+    rename(query = 1) %>%
+    filter(grepl("^2", query)) %>%
+    pivot_longer(!query, names_to = "reference", values_to = "dist") %>%
+    inner_join(ref_gen, by = "reference") %>%
+    group_by(query, subspecies) %>%
+    summarise(dist = mean(dist)) %>%
+    ungroup() %>%
+    group_by(query) %>%
+    filter(dist == min(dist)) %>%
+    ungroup()
+  
+  p_inp_1 <- subspecies %>%
+    group_by(subspecies) %>%
+    tally() %>%
+    ungroup() %>%
+    mutate(abbreviation = ifelse(grepl("hominissuis", subspecies), "MAH", "MAA"))
+  
+  ggplot(p_inp_1, aes(x = abbreviation, y = n)) +
+    geom_bar(stat = "identity", colour = "black", fill = "steelblue") +
+    geom_text(aes(label = paste0("n=", n)), vjust = -0.25) +
+    theme_classic(base_size = 12.5) +
+    theme(axis.title = element_text(face = "bold")) +
+    labs(x = "Subspecies", y = "Num. isolates") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
+  
+}
+
+make_figure_1b <- function() {
   
   fastbaps <- read_delim("data/fastbaps.tsv")
   
@@ -129,7 +135,7 @@ make_fastbaps_bar_chart <- function() {
   
 }
 
-make_tree <- function(pal) {
+make_figure_1c <- function(pal) {
   
   metadata <- read_delim("data/metadata.tsv") %>%
     filter(study == "Present" & bracken_pass)
@@ -188,61 +194,7 @@ make_tree <- function(pal) {
   
 }
 
-make_subspecies_bar_chart <- function() {
-  
-  metadata <- read_delim("data/metadata.tsv") %>%
-    filter(bracken_perc > 70 & study == "Present")
-  
-  ref_gen <- read_delim("data/reference_genomes.tsv") %>%
-    select(1, 3) %>%
-    rename(subspecies = 1, reference = 2) %>%
-    mutate(subspecies = recode(
-      subspecies,
-      "Mycobacterium avium subsp. avium" = "*M. avium* subsp. *avium*",
-      "Mycobacterium avium subsp. hominissuis" = "*M. avium* subsp. *hominissuis*"
-    )) %>%
-    mutate(reference = reference %>%
-             basename() %>%
-             str_replace(".fna.*", ""))
-  
-  cols <- c("query", metadata$isolate, ref_gen$reference)
-  
-  mash_dists <- read_delim("data/mash.dist.txt") %>%
-    rename(query = 1) %>%
-    setNames(str_replace(basename(names(.)), ".fna.*", "")) %>%
-    mutate(query = str_replace(basename(query), ".fna.*", "")) %>%
-    filter(query %in% metadata$isolate) %>%
-    select(query, all_of(cols))
-  
-  subspecies <- mash_dists %>%
-    rename(query = 1) %>%
-    filter(grepl("^2", query)) %>%
-    pivot_longer(!query, names_to = "reference", values_to = "dist") %>%
-    inner_join(ref_gen, by = "reference") %>%
-    group_by(query, subspecies) %>%
-    summarise(dist = mean(dist)) %>%
-    ungroup() %>%
-    group_by(query) %>%
-    filter(dist == min(dist)) %>%
-    ungroup()
-  
-  p_inp_1 <- subspecies %>%
-    group_by(subspecies) %>%
-    tally() %>%
-    ungroup() %>%
-    mutate(abbreviation = ifelse(grepl("hominissuis", subspecies), "MAH", "MAA"))
-  
-  ggplot(p_inp_1, aes(x = abbreviation, y = n)) +
-    geom_bar(stat = "identity", colour = "black", fill = "steelblue") +
-    geom_text(aes(label = paste0("n=", n)), vjust = -0.25) +
-    theme_classic(base_size = 12.5) +
-    theme(axis.title = element_text(face = "bold")) +
-    labs(x = "Subspecies", y = "Num. isolates") +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
-  
-}
-
-viz_putative_transmission_clusters <- function(pal) {
+make_figure_1d <- function(pal) {
   
   metadata <- read_delim("data/metadata.tsv") %>%
     filter(study == "Present" & bracken_pass) %>%
@@ -269,11 +221,6 @@ viz_putative_transmission_clusters <- function(pal) {
     name = duplicates$names,
     cluster = duplicates$membership
   )
-  
-  # dup_rep <- genome_groups %>%
-  #   group_by(cluster) %>%
-  #   sample_n(1) %>%
-  #   pull(name)
   
   g <- snp_mat %>%
     filter(dist <= 12) %>%
@@ -406,12 +353,12 @@ make_figure_1 <- function() {
   pal <- RColorBrewer::brewer.pal(length(set), "Set3")
   names(pal) <- set
   
-  p0 <- make_subspecies_bar_chart()
-  p1 <- make_fastbaps_bar_chart()
-  p2 <- make_tree(pal)
-  p3 <- viz_putative_transmission_clusters(pal)
+  p_a <- make_figure_1a()
+  p_b <- make_figure_1b()
+  p_c <- make_figure_1c(pal)
+  p_d <- make_figure_1d(pal)
   
-  plot_list <- list(p0, p1, p2, p3)
+  plot_list <- list(p_a, p_b, p_c, p_d)
   
   design <- "
 ABC
@@ -428,5 +375,3 @@ DDC
   ggsave("plots/figure_1.png", p, width = 10, height = 5)
   
 }
-
-make_figure_1()
