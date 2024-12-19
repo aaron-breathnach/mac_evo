@@ -1,99 +1,95 @@
 library(tidyverse)
 
-list_meds <- function(dat, i) {
+make_boxplot <- function(dat, variable, y_lab) {
   
-  cols <- colnames(dat)
+  p_inp <- dat %>%
+    select(study, patient, all_of(variable)) %>%
+    rename(n = 3)
   
-  values <- t(dat[i,]) %>% as.data.frame() %>% pull(1)
-  
-  n <- 0
-  out <- c()
-  for (i in values) {
-    n <- n + 1
-    if (i == 1) {
-      out <- c(out, cols[n])
-    }
-  }
-  
-  return(out)
-  
-}
-
-make_upset_plot <- function(dat) {
-  
-  dat$meds <- map(1:nrow(dat), function(x) list_meds(dat, x))
-  
-  dat %>%
-    ggplot(aes(x = meds)) +
-    geom_bar() +
-    geom_text(stat = "count", aes(label = after_stat(count)), vjust = -1) +
-    ggupset::scale_x_upset(n_intersections = 20) +
-    scale_y_continuous(expand = expansion(mult = c(0.1, 0.15))) +
+  ggplot(p_inp, aes(x = study, y = n)) +
+    geom_jitter(
+      aes(colour = study, fill = study),
+      alpha = 0.5,
+      show.legend = FALSE
+    ) +
+    geom_boxplot(outlier.shape = NA, fill = NA) +
     theme_classic(base_size = 12.5) +
     theme(axis.title = element_text(face = "bold")) +
-    labs(x = "Antibiotics", y = "Intersection size")
-  
-}
-
-make_figure_s1a <- function(patient_metadata) {
-  
-  p_inp <- patient_metadata %>%
-    select(1:7) %>%
-    pivot_longer(!c(patient, Gender)) %>%
-    group_by(Gender, name, value) %>%
-    tally() %>%
-    ungroup() %>%
-    arrange(desc(n)) %>%
-    mutate(name = factor(name, levels = c("Nationality",
-                                          "Bronchiectasis",
-                                          "HIV",
-                                          "Smoker",
-                                          "BMI"))) %>%
-    group_by(name) %>%
-    mutate(perc = 100 * n / sum(n)) %>%
-    ungroup() %>%
-    mutate(label = paste0(round(perc, 2), "%"))
-  
-  ggplot(p_inp, aes(x = n, y = value)) +
-    facet_grid(name ~ ., scales = "free", space = "free", switch = "y") +
-    geom_bar(aes(fill = Gender), stat = "identity", colour = "black") +
-    theme_bw(base_size = 12.5) +
-    theme(panel.grid = element_blank(),
-          strip.text.y.left = element_text(face = "bold", angle = 0),
-          axis.title.x = element_text(face = "bold"),
-          axis.title.y = element_blank(),
-          legend.title = element_text(face = "bold")) +
-    scale_x_continuous(expand = expansion(mult = c(0, 0.2))) +
-    scale_y_discrete(position = "right") +
-    labs(x = "Number", fill = "Sex") +
-    scale_fill_manual(values = c("pink", "blue"))
-  
-}
-
-make_figure_s1b <- function(patient_metadata) {
-  
-  dat <- patient_metadata %>%
-    select(patient, Treated, Treatment) %>%
-    setNames(str_to_lower(names(.))) %>%
-    filter(treated == "Yes") %>%
-    separate_longer_delim(treatment, ", ") %>%
-    mutate(treated = recode(treated, "Yes" = 1)) %>%
-    pivot_wider(names_from = treatment, values_from = treated, values_fill = 0) %>%
-    column_to_rownames("patient")
-  
-  make_upset_plot(dat)
+    scale_colour_manual(values = pal) +
+    scale_fill_manual(values = pal) +
+    labs(x = "Study", y = y_lab)
   
 }
 
 make_figure_s1 <- function() {
+
+  pal <- c("#FF883E", "#012169", "#FFCC00")
   
-  patient_metadata <- read_delim("data/patient_info.tsv")
+  #############
+  ## panel a ##
+  #############
   
-  p_a <- make_figure_s1a(patient_metadata)
-  p_b <- make_figure_s1b(patient_metadata)
+  dat_a <- tibble(
+    study = c("Present", "Van Tonder", "Wetzstein"),
+    n = c(50, 135, 102)
+  )
   
-  p <- cowplot::plot_grid(p_a, p_b, labels = c("A", "B"), scale = 0.95)
+  p_a <- ggplot(dat_a, aes(x = study, y = n)) +
+    geom_bar(
+      aes(fill = study),
+      stat = "identity",
+      colour = "black",
+      width = 0.75,
+      show.legend = FALSE
+    ) +
+    geom_text(aes(label = paste0("n=", n)), vjust = -0.25) +
+    theme_classic(base_size = 12.5) +
+    theme(axis.title = element_text(face = "bold")) +
+    scale_fill_manual(values = pal) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+    labs(x = "Study", y = "Number of isolates per study")
   
-  ggsave("plots/figure_s1.png", p, width = 11.25, height = 5, bg = "white")
+  #############
+  ## panel b ##
+  #############
+  
+  metadata <- read_delim("data/metadata.tsv")
+  
+  dat_b <- metadata %>%
+    group_by(patient) %>%
+    filter(time_from_diagnosis == max(time_from_diagnosis)) %>%
+    ungroup()
+  
+  p_b <- make_boxplot(
+    dat = dat_b,
+    variable = "time_from_diagnosis",
+    y_lab = "Max time from diagnosis (years) per patient"
+  )
+  
+  #############
+  ## panel c ##
+  #############
+  
+  dat_c <- metadata %>%
+    group_by(study, patient) %>%
+    summarise(number_of_isolates = n()) %>%
+    ungroup()
+  
+  p_c <- make_boxplot(
+    dat = dat_c,
+    variable = "number_of_isolates",
+    y_lab = "Number of isolates per patient"
+  )
+  
+  ########################
+  ## combine the panels ##
+  ########################
+  
+  plot_list <- list(p_a, p_b, p_c)
+  
+  p <- patchwork::wrap_plots(plot_list) +
+    patchwork::plot_annotation(tag_levels = "A")
+  
+  ggsave("plots/figure_s1.png", p, width = 12.5, height = 5)
   
 }

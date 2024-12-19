@@ -2,104 +2,225 @@ library(tidyverse)
 
 `%<+%` <- ggtree::`%<+%`
 
-find_clades_with_shared_strains <- function(tree, snp_dists, metadata) {
+get_jumps <- function(pid, metadata, snp_dists) {
   
-  strains <- snp_dists %>%
-    dplyr::rename(genome_1 = 1) %>%
-    pivot_longer(!genome_1, names_to = "genome_2", values_to = "dist") %>%
-    filter(genome_1 != genome_2) %>%
-    filter(dist <= 12)
+  meta <- metadata %>%
+    filter(patient == pid) %>%
+    select(isolate, time_from_diagnosis)
   
-  clusters <- strains %>%
-    tidygraph::as_tbl_graph(directed = FALSE) %>%
-    igraph::cluster_leiden()
+  n <- nrow(meta)
   
-  clusters <- tibble(isolate = clusters$names, cluster = clusters$membership) %>%
-    inner_join(metadata, by = "isolate")
+  pairs <- 2:n %>%
+    purrr::map(function(x) tibble(gen_1 = meta[[x - 1, 1]], gen_2 = meta[[x, 1]])) %>%
+    bind_rows()
   
-  clusters_of_interest <- clusters %>%
-    select(cluster, study) %>%
-    distinct() %>%
-    group_by(cluster) %>%
-    tally() %>%
-    filter(n > 1) %>%
-    pull(cluster)
+  if (nrow(pairs) > 1) {
+    
+    out <- snp_dists %>%
+      filter(genome_1 %in% meta$isolate) %>%
+      select(1, all_of(meta$isolate)) %>%
+      pivot_longer(!genome_1, names_to = "genome_2", values_to = "dist") %>%
+      filter(genome_1 != genome_2) %>%
+      inner_join(meta, by = c("genome_1" = "isolate")) %>%
+      inner_join(meta, by = c("genome_2" = "isolate")) %>%
+      mutate(gen_1 = case_when(
+        time_from_diagnosis.x < time_from_diagnosis.y ~ genome_1,
+        time_from_diagnosis.y < time_from_diagnosis.x ~ genome_2
+      )) %>%
+      mutate(gen_2 = case_when(
+        time_from_diagnosis.x > time_from_diagnosis.y ~ genome_1,
+        time_from_diagnosis.y > time_from_diagnosis.x ~ genome_2
+      )) %>%
+      select(gen_1, gen_2, dist) %>%
+      distinct() %>%
+      inner_join(pairs, by = c("gen_1", "gen_2")) %>%
+      filter(dist > 12) %>%
+      mutate(patient = pid) %>%
+      select(4, 1, 2)
+    
+  } else {
+    
+    out <- pairs %>%
+      mutate(patient = pid) %>%
+      select(3, 1, 2)
+    
+  }
   
-  n <- nchar(length(clusters_of_interest))
-  
-  cluster_to_clade <- tibble(cluster = clusters_of_interest) %>%
-    arrange(cluster) %>%
-    mutate(clade = sprintf("Cluster %s", str_pad(row_number(), n, "left", "0")))
-  
-  clusters %>%
-    inner_join(cluster_to_clade, by = "cluster") %>%
-    select(isolate, clade)
+  return(out)
   
 }
 
-make_figure_2a <- function(fastbaps, metadata, pal) {
+make_figure_2a <- function() {
   
-  dat <- inner_join(fastbaps, metadata, by = "isolate") %>%
-    mutate(lineage = str_pad(level_1, 2, "left", "0"))
+  metadata <- read_delim("data/metadata.tsv") %>%
+    filter(bracken_perc > 70 & study == "Present")
   
-  p_inp <- dat %>%
-    group_by(lineage, country) %>%
-    tally() %>%
+  ref_gen <- read_delim("data/reference_genomes.tsv") %>%
+    select(1, 3) %>%
+    rename(subspecies = 1, reference = 2) %>%
+    mutate(subspecies = recode(
+      subspecies,
+      "Mycobacterium avium subsp. avium" = "*M. avium* subsp. *avium*",
+      "Mycobacterium avium subsp. hominissuis" = "*M. avium* subsp. *hominissuis*"
+    )) %>%
+    mutate(reference = reference %>%
+             basename() %>%
+             str_replace(".fna.*", ""))
+  
+  cols <- c("query", metadata$isolate, ref_gen$reference)
+  
+  mash_dists <- read_delim("data/mash.dist.txt") %>%
+    rename(query = 1) %>%
+    setNames(str_replace(basename(names(.)), ".fna.*", "")) %>%
+    mutate(query = str_replace(basename(query), ".fna.*", "")) %>%
+    filter(query %in% metadata$isolate) %>%
+    select(query, all_of(cols))
+  
+  subspecies <- mash_dists %>%
+    rename(query = 1) %>%
+    filter(grepl("^2", query)) %>%
+    pivot_longer(!query, names_to = "reference", values_to = "dist") %>%
+    inner_join(ref_gen, by = "reference") %>%
+    group_by(query, subspecies) %>%
+    summarise(dist = mean(dist)) %>%
+    ungroup() %>%
+    group_by(query) %>%
+    filter(dist == min(dist)) %>%
     ungroup()
   
-  x_ord <- p_inp %>%
-    group_by(lineage) %>%
-    summarise(n = sum(n)) %>%
-    arrange(desc(n)) %>%
-    pull(lineage)
+  p_inp_1 <- subspecies %>%
+    group_by(subspecies) %>%
+    tally() %>%
+    ungroup() %>%
+    mutate(abbreviation = ifelse(grepl("hominissuis", subspecies), "MAH", "MAA"))
   
-  p_inp$lineage <- factor(p_inp$lineage, levels = x_ord)
-  
-  p_inp$country <- factor(p_inp$country, levels = c("Ireland", "UK", "Germany"))
-  
-  ggplot(p_inp, aes(x = lineage, y = n)) +
-    geom_bar(aes(fill = country), stat = "identity", colour = "black", show.legend = FALSE) +
-    scale_fill_manual(values =  pal) +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  ggplot(p_inp_1, aes(x = abbreviation, y = n)) +
+    geom_bar(stat = "identity", colour = "black", fill = "steelblue") +
+    geom_text(aes(label = paste0("n=", n)), vjust = -0.25) +
     theme_classic(base_size = 12.5) +
-    theme(axis.title = element_text(face = "bold"),
-          legend.title = element_text(face = "bold")) +
-    labs(x = "fastbaps lineage", y = "Number of genomes", fill = "Country")
+    theme(axis.title = element_text(face = "bold")) +
+    labs(x = "Subspecies", y = "Num. isolates") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.1)))
   
 }
 
-make_figure_2b <- function(metadata, snp_dists, pal) {
+make_figure_2b <- function() {
   
-  metadata <- metadata %>%
-    select(isolate, patient, country) %>%
+  fastbaps <- read_delim("data/fastbaps.tsv")
+  
+  metadata <- read_delim("data/metadata.tsv") %>%
+    filter(study == "Present")
+  
+  p_inp <- inner_join(fastbaps, metadata, by = "isolate") %>%
+    select(patient, level_1) %>%
+    distinct() %>%
+    group_by(patient) %>%
+    tally() %>%
+    ungroup() %>%
+    as.data.frame() %>%
+    rename(lineages_per_patient = 2) %>%
+    mutate(lineages_per_patient = lineages_per_patient %>%
+             english::english() %>%
+             str_to_sentence()) %>%
+    group_by(lineages_per_patient) %>%
+    tally()
+  
+  ggplot(p_inp, aes(x = lineages_per_patient, y = n)) +
+    geom_bar(stat = "identity", colour = "black", fill = "steelblue") +
+    geom_text(aes(label = paste0("n=", n)), vjust = -0.25) +
+    theme_classic(base_size = 12.5) +
+    theme(axis.title = element_text(face = "bold")) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+    labs(x = "Num. lineages", y = "Num. patients")
+  
+}
+
+make_figure_2c <- function(pal) {
+  
+  metadata <- read_delim("data/metadata.tsv") %>%
+    filter(study == "Present" & bracken_pass)
+  
+  snp_dists <- read_delim("data/snp_dists.tsv")
+  
+  tree <- ggtree::read.tree("data/mavium.final_tree.tre")
+  
+  isolates <- unlist(lapply(tree$tip.label, function(x) if (grepl("^2", x)) x))
+  
+  tree <- ape::keep.tip(tree, isolates)
+  
+  patients <- metadata %>%
+    filter(multiple_carriage) %>%
+    pull(patient) %>%
+    unique()
+  
+  meta <- metadata %>%
+    filter(study == "Present" & patient %in% patients & isolate %in% isolates)
+  
+  snp_dists <- read_delim("data/snp_dists.tsv") %>%
+    rename(genome_1 = 1)
+  
+  pids <- unique(meta$patient)
+  
+  df_1 <- metadata %>%
+    mutate(patient = ifelse(patient %in% pids, patient, NA)) %>%
+    select(isolate, patient)
+  
+  df_2 <- purrr::map(pids, function(x) get_jumps(x, meta, snp_dists)) %>%
+    bind_rows()
+  
+  ggtree::ggtree(tree) %<+%
+    df_1 +
+    ggtree::geom_taxalink(
+      data = df_2,
+      aes(taxa1 = gen_1, taxa2 = gen_2),
+      colour = "black",
+      size = 1,
+    ) +
+    ggtree::geom_taxalink(
+      data = df_2,
+      aes(taxa1 = gen_1, taxa2 = gen_2, colour = patient),
+      show.legend = FALSE
+    ) +
+    ggtree::geom_tippoint(
+      aes(fill = patient, subset = !is.na(patient)),
+      pch = 21,
+      size = 2
+    ) +
+    scale_size_continuous(range = c(0, 2)) +
+    scale_colour_manual(values = pal) +
+    scale_fill_manual(values = pal) +
+    labs(fill = "Patient") +
+    theme(legend.title = element_text(face = "bold"))
+  
+}
+
+make_figure_2d <- function(pal) {
+  
+  metadata <- read_delim("data/metadata.tsv") %>%
+    filter(study == "Present" & bracken_pass) %>%
+    select(isolate, patient) %>%
     rename(name = 1)
   
-  snp_mat <- snp_dists %>%
+  snp_mat <- read_delim("data/snp_dists.tsv") %>%
     rename(genome_1 = 1) %>%
     filter(genome_1 != "Reference") %>%
     select(-any_of("Reference")) %>%
-    pivot_longer(!genome_1, names_to = "genome_2", values_to = "dist")
+    pivot_longer(!genome_1, names_to = "genome_2", values_to = "dist") %>%
+    filter(genome_1 %in% metadata$name & genome_2 %in% metadata$name)
   
-  identical_genomes <- snp_mat %>%
+  duplicates <- snp_mat %>%
     filter(dist == 0 & genome_1 != genome_2) %>%
     tidygraph::as_tbl_graph(directed = FALSE) %>%
     igraph::cluster_leiden()
   
-  non_identical_genomes <- metadata %>%
-    filter(!name %in% identical_genomes$names) %>%
+  non_duplicates <- metadata %>%
+    filter(!name %in% duplicates$names) %>%
     pull(name)
   
   genome_groups <- tibble(
-    name = identical_genomes$names,
-    cluster = identical_genomes$membership
+    name = duplicates$names,
+    cluster = duplicates$membership
   )
-  
-  identical_genome_representatives <- genome_groups %>%
-    group_by(cluster) %>%
-    sample_n(1) %>%
-    pull(name)
-  
-  genomes <- c(non_identical_genomes, identical_genome_representatives)
   
   g <- snp_mat %>%
     filter(dist <= 12) %>%
@@ -112,51 +233,75 @@ make_figure_2b <- function(metadata, snp_dists, pal) {
   
   keep <- components %>%
     inner_join(metadata, by = "name") %>%
-    select(component, country) %>%
+    select(component, patient) %>%
     distinct() %>%
     group_by(component) %>%
     tally() %>%
+    ungroup() %>%
     filter(n > 1) %>%
     pull(component)
   
-  isolates <- components %>%
+  isolates_a <- components %>%
     filter(component %in% keep) %>%
     pull(name)
   
-  g <- snp_mat %>%
-    filter(genome_1 %in% genomes & genome_2 %in% genomes) %>%
+  cids <- genome_groups %>%
+    inner_join(metadata, by = "name") %>%
+    select(cluster, patient) %>%
+    distinct() %>%
+    group_by(cluster) %>%
+    tally() %>%
+    filter(n > 1) %>%
+    pull(cluster)
+  
+  isolates_b <- genome_groups %>%
+    filter(cluster %in% cids) %>%
+    pull(name)
+  
+  isolates <- unique(c(isolates_a, isolates_b))
+  
+  iden_geno_reps <- genome_groups %>%
+    group_by(cluster) %>%
+    sample_n(1) %>%
+    ungroup() %>%
+    rename(representative = 1) %>%
+    select(representative, cluster)
+  
+  dat_a <- tibble(representative = non_duplicates, name = non_duplicates)
+  
+  dat_b <- inner_join(iden_geno_reps, genome_groups, by = "cluster") %>%
+    select(representative, name)
+  
+  dat <- bind_rows(dat_a, dat_b)
+  
+  df_1 <- snp_mat %>%
     filter(dist <= 12 & genome_1 != genome_2) %>%
     tidygraph::as_tbl_graph() %>%
-    igraph::mst() %>%
-    tidygraph::as_tbl_graph() %>%
     filter(name %in% isolates) %>%
+    inner_join(dat, by = "name") %>%
     inner_join(metadata, by = "name")
   
-  sizes <- inner_join(genome_groups, metadata, by = "name") %>%
-    select(cluster, patient, country) %>%
+  df_a <- as_tibble(df_1) %>%
+    select(representative, patient) %>%
     distinct() %>%
-    group_by(cluster, country) %>%
-    tally() %>%
-    ungroup()
-  
-  part_1 <- genome_groups %>%
-    filter(name %in% pull(g, name)) %>%
-    inner_join(sizes, by = "cluster") %>%
-    select(name, country, n)
-  
-  part_2 <- g %>%
     as_tibble() %>%
+    group_by(representative) %>%
+    summarise(size = n())
+  
+  df_b <- as_tibble(df_1) %>%
+    select(representative, patient) %>%
+    distinct() %>%
     mutate(n = 1) %>%
-    select(name, country, n) %>%
-    filter(!name %in% part_1$name)
+    arrange(patient) %>%
+    pivot_wider(names_from = patient, values_from = n, values_fill = 0)
   
-  part_3 <- bind_rows(part_1, part_2) %>%
-    arrange(country) %>%
-    pivot_wider(names_from = country, values_from = n, values_fill = 0) %>%
-    mutate(size = Germany + Ireland + UK)
+  df <- inner_join(df_b, df_a, by = "representative")
   
-  g <- g %>%
-    inner_join(part_3, by = "name")
+  g <- df_1 %>%
+    filter(name %in% df$representative) %>%
+    inner_join(df, by = "representative") %>%
+    igraph::mst() %>%
+    tidygraph::as_tbl_graph()
   
   layout <- ggraph::create_layout(g, "fr")
   igraph::V(g)$x <- layout[, 1]
@@ -166,8 +311,7 @@ make_figure_2b <- function(metadata, snp_dists, pal) {
     filter(name %in% pull(g, name)) %>%
     select(component) %>%
     distinct() %>%
-    arrange(component) %>%
-    mutate(clade = sprintf("Cluster %s", row_number()))
+    arrange(component)
   
   ann <- components %>%
     filter(name %in% pull(g, name)) %>%
@@ -175,114 +319,59 @@ make_figure_2b <- function(metadata, snp_dists, pal) {
     group_by(component) %>%
     summarise(x = mean(x), y = max(y)) %>%
     ungroup() %>%
-    inner_join(clades, by = "component")
+    inner_join(clades, by = "component") %>%
+    arrange(desc(y)) %>%
+    mutate(clade = paste0("Cluster ", row_number()))
   
   ggraph::ggraph(g, "manual", x = igraph::V(g)$x, y = igraph::V(g)$y) +
     ggraph::geom_edge_fan(aes(label = dist), colour = "lightgrey") +
     geom_text(data = ann,
               aes(x = x, y = y, label = clade),
-              vjust = -2) +
+              vjust = -1.25) +
     scatterpie::geom_scatterpie(data = layout,
-                                aes(x = x, y = y, r = 0.51 * size / max(layout$size)),
-                                cols = c("Germany", "Ireland", "UK"),
-                                colour = "black",
-                                show.legend = FALSE) +
+                                aes(x = x, y = y, r = 0.251 * size / max(layout$size)),
+                                cols = colnames(df_b)[-1],
+                                colour = "black") +
     scatterpie::geom_scatterpie(data = layout,
-                                aes(x = x, y = y, r = 0.5 * size / max(layout$size)),
-                                cols = c("Germany", "Ireland", "UK"),
-                                colour = NA,
-                                show.legend = FALSE) +
+                                aes(x = x, y = y, r = 0.25 * size / max(layout$size)),
+                                cols = colnames(df_b)[-1],
+                                colour = NA) +
     coord_fixed() +
     scale_fill_manual(values = pal) +
     theme(panel.background = element_blank(),
-          title = element_text(face = "bold"))
-  
-}
-
-make_figure_2c <- function(tree, metadata, fastbaps, snp_dists, pal, save = FALSE) {
-  
-  clades <- find_clades_with_shared_strains(tree, snp_dists, metadata)
-  
-  ann_1 <- metadata %>%
-    select(isolate) %>%
-    left_join(clades, by = "isolate") %>%
-    rename(Cluster = 2)
-  
-  ann_2 <- metadata %>%
-    select(isolate, country) %>%
-    rename(Country = 2) %>%
-    column_to_rownames("isolate")
-  
-  ann_3 <- fastbaps %>%
-    select(1, 2) %>%
-    dplyr::rename(isolate = 1, Lineage = 2) %>%
-    mutate(Lineage = str_pad(Lineage, 2, "left", "0")) %>%
-    column_to_rownames("isolate")
-  
-  p0 <- ggtree::ggtree(tree, layout = "circular")
-  
-  p1 <- p0 %<+%
-    ann_1 +
-    ggtree::geom_tippoint(
-      aes(colour = Cluster, subset = !is.na(Cluster)),
-      size = 3
-    ) +
-    scale_colour_brewer(palette = "Dark2") +
-    theme(legend.title = element_text(face = "bold"))
-  
-  p2 <- ggtree::gheatmap(p1, ann_2, offset = 1, width = .1, colnames = F, color = NA) +
-    scale_fill_manual(values = pal) +
-    theme(legend.title = element_text(face = "bold")) +
-    labs(fill = "Study") +
-    ggnewscale::new_scale_fill()
-  
-  p3 <- ggtree::gheatmap(p2, ann_3, offset = .375 * 1e4, width = .1, colnames = F, color = NA) +
-    scale_fill_viridis_d() +
-    theme(legend.title = element_text(face = "bold")) +
-    labs(fill = "fastbaps lineage")  +
-    ggnewscale::new_scale_fill() +
-    guides(fill = guide_legend(ncol = 3))
-  
-  p3 +
-    theme(
-      legend.box = "horizontal",
-      legend.position = c(1.05, 0.75)
-    )
+          title = element_text(face = "bold")) +
+    labs(fill = "Patient") +
+    scale_y_continuous(expand = expansion(mult = c(0.1, 0.125)))
   
 }
 
 make_figure_2 <- function() {
   
-  par(mar = c(1, 1, 1, 1))
+  set_1 <- c("P02", "P04", "P06", "P07", "P08", "P12", "P16", "P19")
+  set_2 <- c("P02", "P04", "P06", "P10", "P19")
+  set <- sort(unique(c(set_1, set_2)))
+  pal <- RColorBrewer::brewer.pal(length(set), "Set3")
+  names(pal) <- set
   
-  fastbaps  <- read_delim("data/fastbaps.tsv")
+  p_a <- make_figure_2a()
+  p_b <- make_figure_2b()
+  p_c <- make_figure_2c(pal)
+  p_d <- make_figure_2d(pal)
   
-  metadata  <- read_delim("data/metadata.tsv")
+  plot_list <- list(p_a, p_b, p_c, p_d)
   
-  tree <- ggtree::read.tree("data/mavium.final_tree.tre") %>%
-    ape::drop.tip("Reference")
+  design <- "
+ABC
+ABC
+DDC
+DDC
+DDC
+"
   
-  snp_dists <- read_delim("data/snp_dists.tsv")
+  p <- patchwork::wrap_plots(plot_list) +
+    patchwork::plot_layout(design = design, widths = c(0.5, 0.5, 1.5)) +
+    patchwork::plot_annotation(tag_levels = "A")
   
-  pal <- c(
-    "Germany" = "#FFCC00",
-    "Ireland" = "#FF883E",
-    "UK" = "#012169"
-  )
-  
-  p_a <- make_figure_2a(fastbaps, metadata, pal)
-  p_b <- make_figure_2b(metadata, snp_dists, pal)
-  p_c <- make_figure_2c(tree, metadata, fastbaps, snp_dists, pal)
-  
-  part_1 <- cowplot::plot_grid(plot.new(), p_a, plot.new(),
-                               nrow = 1,
-                               rel_widths = c(1, 2, 1),
-                               labels = c("", "A", ""))
-  
-  part_2 <- cowplot::plot_grid(p_b, p_c, nrow = 1, labels = c("B", "C"), rel_widths = c(1, 1.5))
-  
-  figure_2 <- cowplot::plot_grid(part_1, part_2, nrow = 2, rel_heights = c(1, 1.75), scale = 0.95)
-  
-  ggsave("plots/figure_2.png", figure_2, width = 16.25, height = 10, bg = "white")
+  ggsave("plots/figure_2.png", p, width = 10, height = 5)
   
 }
