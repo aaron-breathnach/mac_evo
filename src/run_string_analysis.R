@@ -6,7 +6,7 @@ library(tidyverse)
    run_string_analysis.R [--sig_gen <sig_gen> --score <score> --limit <limit> --prefix <prefix> --out_dir <out_dir>]
 
 Options:
-   --sig_gen Table containing a list of genes in with enriched mutations [default: data/sig_gen.tsv]
+   --sig_gen Table containing a list of genes in with enriched mutations [default: data/gen_pos.tsv]
    --score Minimum required interaction score [default: 400]
    --limit Max number of interactors to show [default: 30]
    --prefix Prefix for output filenames [default: network]

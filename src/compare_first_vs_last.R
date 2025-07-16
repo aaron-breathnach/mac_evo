@@ -110,6 +110,9 @@ run_check_haplo_status <- function(haplotype_abundance, metadata, threshold = 1)
 compare_first_vs_last <- function(haplotype_abundance, metadata, threshold = 1, long = FALSE) {
   
   df <- run_check_haplo_status(haplotype_abundance, metadata, threshold) %>%
+    group_by(patient, time_from_diagnosis) %>%
+    sample_n(1) %>%
+    ungroup() %>%
     group_by(patient) %>%
     filter(time_from_diagnosis == max(time_from_diagnosis) | time_from_diagnosis == min(time_from_diagnosis)) %>%
     ungroup() %>%
@@ -122,7 +125,8 @@ compare_first_vs_last <- function(haplotype_abundance, metadata, threshold = 1, 
     bind_rows() %>%
     mutate(n_cleared = str_count(cleared, "H")) %>%
     mutate(n_persist = str_count(persist, "H")) %>%
-    mutate(n_new_inf = str_count(new_inf, "H"))
+    mutate(n_new_inf = str_count(new_inf, "H")) %>%
+    mutate(perc_pers = 100 * n_persist / (n_cleared + n_persist))
   
   if (long) {
   
@@ -136,6 +140,8 @@ compare_first_vs_last <- function(haplotype_abundance, metadata, threshold = 1, 
       mutate(status = factor(status, levels = c("Persisted", "Cleared", "Acquired")))
     
   }
+  
+  write_tsv(first_vs_last, "data/haplotype_persistence.tsv")
   
   return(first_vs_last)
   

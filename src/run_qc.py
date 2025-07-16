@@ -1,7 +1,6 @@
 import argparse
 import configparser
 import os
-import subprocess
 from utils import get_prefixes
 
 cpu_count = os.cpu_count()

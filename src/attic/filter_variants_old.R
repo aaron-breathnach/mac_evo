@@ -161,7 +161,7 @@ filter_too_close <- function(dat) {
 
 .run_filter_regions <- function(vcf, genome_length) {
   
-  genome <- vcf %>%
+  prefix <- vcf %>%
     basename() %>%
     str_replace("\\..*", "")
   
@@ -173,25 +173,15 @@ filter_too_close <- function(dat) {
     mutate(chr_pos = sprintf("%s-%s", `#CHROM`, POS)) %>%
     pull(chr_pos)
   
-  tmp <- vcfR::read.vcfR(vcf, verbose = FALSE) %>%
+  vcfR::read.vcfR(vcf, verbose = FALSE) %>%
     slot("fix") %>%
     as_tibble() %>%
     mutate(chr_pos = sprintf("%s-%s", `CHROM`, POS)) %>%
     filter(chr_pos %in% keep) %>%
-    mutate(GENOME = genome) %>%
+    mutate(GENOME = prefix) %>%
     mutate(POS = as.numeric(POS)) %>%
-    select(10, 1:8)
-  
-  df_1 <- tmp %>%
+    select(10, 1:8) %>%
     filter_too_close()
-  
-  num_high_qual <- nrow(df_1)
-  num_prob_area <- nrow(minor_vafs) - nrow(tmp)
-  num_prob_dist <- nrow(tmp) - nrow(df_1)
-  
-  df_2 <- tibble(genome, num_high_qual, num_prob_area, num_prob_dist)
-  
-  list(df_1, df_2)
   
 }
 
@@ -213,15 +203,8 @@ run_filter_regions <- function(pid, metadata, genome_lengths) {
     mutate(vcf = sprintf("data/lofreq/within_host/%s.lofreq.snpeff.vcf.gz", isolate)) %>%
     pull(vcf)
   
-  tmp <- purrr::map(vcfs, function(x) .run_filter_regions(x, genome_length))
-  
-  df_1 <- purrr::map(1:length(tmp), function(x) tmp[[x]][[1]]) %>%
+  purrr::map(vcfs, function(x) .run_filter_regions(x, genome_length)) %>%
     bind_rows()
-  
-  df_2 <- purrr::map(1:length(tmp), function(x) tmp[[x]][[2]]) %>%
-    bind_rows()
-  
-  list(df_1, df_2)
   
 }
 
@@ -241,43 +224,36 @@ filter_vcf <- function(METADATA, GEN_LEN, OUT_DIR) {
     furrr::future_map(
       function(x) run_filter_regions(x, metadata, gen_len),
       .options = furrr::furrr_options(seed = TRUE)
-    )
-  
-  df_1 <- purrr::map(1:length(dat), function(x) dat[[x]][[1]]) %>%
+    ) %>%
     bind_rows()
   
-  # rm <- df_1 %>%
-  #   inner_join(metadata, by = c("GENOME" = "isolate")) %>%
-  #   mutate(allele_frequency = INFO %>%
-  #            str_replace(".*AF=", "") %>%
-  #            str_replace(".SB=.*", "") %>%
-  #            as.numeric()) %>%
-  #   filter(allele_frequency == 1) %>%
-  #   group_by(GENOME, patient) %>%
-  #   tally() %>%
-  #   ungroup() %>%
-  #   group_by(patient) %>%
-  #   filter(n == max(n)) %>%
-  #   sample_n(1) %>%
-  #   ungroup() %>%
-  #   select(patient, n) %>%
-  #   arrange(patient) %>%
-  #   filter(n > 13) %>%
-  #   select(patient) %>%
-  #   inner_join(metadata, by = "patient") %>%
-  #   pull(isolate)
-  # 
-  # df_1 <- df_1 %>%
-  #   filter(!GENOME %in% rm)
+  rm <- dat %>%
+    inner_join(metadata, by = c("GENOME" = "isolate")) %>%
+    mutate(allele_frequency = INFO %>%
+             str_replace(".*AF=", "") %>%
+             str_replace(".SB=.*", "") %>%
+             as.numeric()) %>%
+    filter(allele_frequency == 1) %>%
+    group_by(GENOME, patient) %>%
+    tally() %>%
+    ungroup() %>%
+    group_by(patient) %>%
+    filter(n == max(n)) %>%
+    sample_n(1) %>%
+    ungroup() %>%
+    select(patient, n) %>%
+    arrange(patient) %>%
+    filter(n > 16) %>%
+    select(patient) %>%
+    inner_join(metadata, by = "patient") %>%
+    pull(isolate)
   
-  df_2 <- purrr::map(1:length(dat), function(x) dat[[x]][[2]]) %>%
-    bind_rows()
+  dat <- dat %>%
+    filter(!GENOME %in% rm)
   
-  filename_1 <- sprintf("%s/filtered_variants.tsv", OUT_DIR)
-  write_tsv(df_1, filename_1)
+  filename <- sprintf("%s/filtered_variants.tsv", OUT_DIR)
   
-  filename_2 <- sprintf("%s/filtered_variants_summary.tsv", OUT_DIR)
-  write_tsv(df_2, filename_2)
+  write_tsv(dat, filename)
   
 }
 

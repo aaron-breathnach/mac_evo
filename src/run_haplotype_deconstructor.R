@@ -8,7 +8,9 @@ source("src/get_vcf.R")
 
 .run_haplotype_deconstructor <- function(mat, threshold) {
   
-  mat <- mat[rowSums(mat) != 0,]
+  output <- list()
+  
+  mat <- mat[(rowSums(ifelse(mat > 0, 1, 0)) / ncol(mat)) > 0.05,]
   
   set.seed(123)
   mat <- mat[sample.int(nrow(mat), 1000),]
@@ -42,40 +44,30 @@ source("src/get_vcf.R")
     mutate(rel_contribution = 100 * contribution / sum(contribution)) %>%
     ungroup()
   
-  list(exp_v_hap, haplotypes)
+  output <- list(exp_v_hap, decomposed, haplotypes)
+  names(output) <- c("exp_v_hap", "decomposed", "haplotypes")
+  return(output)
   
 }
 
-run_haplotype_deconstructor <- function(threshold = 80, present_study = FALSE) {
+run_haplotype_deconstructor <- function(threshold = 90) {
   
-  if (present_study) {
-    rds <- "data/haplotype_deconstructor.irish_cohort.RDS"
-  } else {
-    rds <- "data/haplotype_deconstructor.RDS"
-  }
+  rds <- "data/haplotype_deconstructor.RDS"
   
   if (!file.exists(rds)) {
     
-    files <- list.files("data/lofreq/common_reference", full.names = TRUE)
+    # files <- list.files("data/lofreq/common_reference", full.names = TRUE)
     
     # patients <- readLines("data/reinfected_patients.txt")
     
     metadata <- read_delim("data/metadata.tsv") %>%
-      filter(bracken_pass)
-    
-    if (present_study) {
-      
-      metadata <- metadata %>%
-        filter(study == "Present")
-      
-    }
+      filter(bracken_pass & multiple_carriage)
     
     vcfs <- metadata %>%
-      filter(bracken_pass) %>%
       mutate(vcf = sprintf("data/lofreq/common_reference/%s.lofreq.vcf.gz", isolate)) %>%
       pull(vcf)
     
-    dat <- purrr::map(vcfs, function(x) {
+    mat <- purrr::map(vcfs, function(x) {
       get_vcf(x) %>%
         dplyr::rename(CHROM = 1) %>%
         mutate(CHROM = str_replace(CHROM, ".*\\|", "")) %>%
@@ -88,13 +80,11 @@ run_haplotype_deconstructor <- function(threshold = 80, present_study = FALSE) {
         select(SNP, GENOME, AF)
     }) %>%
       bind_rows() %>%
-      pivot_wider(names_from = "GENOME", values_from = "AF", values_fill = 0)
-    
-    mat <- dat %>%
+      pivot_wider(names_from = "GENOME", values_from = "AF", values_fill = 0) %>%
       column_to_rownames("SNP") %>%
       as.matrix()
     
-    res <- .run_haplotype_deconstructor(MAT, threshold)
+    res <- .run_haplotype_deconstructor(mat, threshold)
     
     saveRDS(res, rds)
     

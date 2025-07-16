@@ -1,7 +1,7 @@
 import configparser
 import os
 
-def run_lofreq(configuration_file, prefix, out_dir, index, threads, use_bed, rerun):
+def run_lofreq(configuration_file, prefix, out_dir, index, threads, use_bed, rerun, max_depth=int(1e6)):
     config = configparser.ConfigParser()
     config.read(configuration_file)
     targets = ['{index}.bwt',
@@ -31,7 +31,7 @@ def run_lofreq(configuration_file, prefix, out_dir, index, threads, use_bed, rer
             bed = ' -l panaroo/output/single_copy_core_genes.bed '
         else:
             bed = ' '
-        cmd.append(config['variant_calling']['lofreq_part_2'].format(bed=bed, prefix=prefix, out_dir=out_dir, threads=threads, index=index))
+        cmd.append(config['variant_calling']['lofreq_part_2'].format(max_depth=max_depth, bed=bed, prefix=prefix, out_dir=out_dir, threads=threads, index=index))
     if not os.path.exists(targets[6]) or rerun:
         cmd.append(config['variant_calling']['bgzip'])
     if not os.path.exists(targets[7]) or rerun:

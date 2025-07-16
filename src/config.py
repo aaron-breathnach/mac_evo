@@ -59,27 +59,6 @@ def get_dictionary():
     -t {threads} 
     -m {ram}
     '''.replace('\n', '').replace('    ', '')
-    QUAST = '''
-    docker run -v $PWD:/data staphb/quast 
-    quast.py 
-    prokka/{prefix}/{prefix}.fna 
-    -r databases/GCF_009741445.1/GCF_009741445.1_ASM974144v1_genomic.fna 
-    -g databases/GCF_009741445.1/genomic.gff 
-    -1 reads/processed/{prefix}_R1_001.qcd.fastq.gz 
-    -2 reads/processed/{prefix}_R1_001.qcd.fastq.gz 
-    -o quast/{prefix} 
-    -t {threads}
-    '''.replace('\n', '').replace('    ', '')
-    CHECKM = '''
-    docker run -v $PWD:/data staphb/checkm:latest 
-    checkm 
-    lineage_wf 
-    -t {threads} 
-    checkm/input.txt 
-    checkm 
-    -f checkm/checkm.tsv 
-    --tab
-    '''.replace('\n', '').replace('    ', '')
     PROKKA = '''
     docker run -v $PWD:/data staphb/prokka:latest 
     prokka 
@@ -95,35 +74,71 @@ def get_dictionary():
     '''.replace('\n', '').replace('    ', '')
     assembly_and_annotation = {
         'spades': SPADES,
-        'quast': QUAST,
-        'checkm': CHECKM,
         'prokka': PROKKA
     }
-    ############
-    ## snippy ##
-    ############
-    SNIPPY = '''
-    docker run -v $PWD:/data staphb/snippy 
-    snippy 
-    --cpus {threads} 
-    --outdir snippy/{prefix} 
-    --ref databases/GCF_009741445.1/GCF_009741445.1_ASM974144v1_genomic.fna 
-    --R1 reads/processed/{prefix}_R1_001.qcd.fastq.gz 
-    --R2 reads/processed/{prefix}_R2_001.qcd.fastq.gz
-    '''.replace('\n', '').replace('    ', '')
-    SNIPPY_CORE = '''
-    docker run -v $PWD:/data staphb/snippy 
-    snippy-core 
-    --ref databases/GCF_009741445.1/GCF_009741445.1_ASM974144v1_genomic.fna 
-    --prefix snippy/core 
-    {}
-    '''.replace('\n', '').replace('    ', '')
-    SNIPPY_CLEAN_FULL_ALN = 'docker run -v $PWD:/data staphb/snippy snippy-clean_full_aln snippy/core.full.aln > snippy/gubbins.aln'
-    snippy = {
-        'snippy': SNIPPY,
-        'snippy_core': SNIPPY_CORE,
-        'snippy_clean_full_aln': SNIPPY_CLEAN_FULL_ALN
+    #########################
+    ## population analysis ##
+    #########################
+    SKA_BUILD = '''
+    ska build 
+    -f {out_dir}/file_list.txt 
+    -k 31 
+    -o {out_dir}/index 
+    --threads {threads} 
+    -v
+    '''.replace('\n', ' ').replace('    ', '')
+    SKA_ALIGN = '''
+    ska align 
+    --min-freq 1 
+    --filter no-filter 
+    {out_dir}/index.skf 
+    -o {out_dir}/alignment.aln 
+    --ambig-mask 
+    --threads {threads} 
+    -v
+    '''.replace('\n', ' ').replace('    ', '')
+    IQTREE = 'iqtree -s {out_dir}/alignment.aln -m MFP --prefix iqtree/iqtree'
+    SKA_MAP = '''
+    ska map 
+    -o {out_dir}/alignment.aln 
+    --ambig-mask 
+    --threads {threads} 
+    {ref} 
+    {out_dir}/index.skf
+    '''.replace('\n', ' ').replace('    ', '')
+    FASTBAPS = 'Rscript src/run_fastbaps.R && Rscript src/list_fastbaps_clusters.R'
+    RUN_GUBBINS = '''
+    run_gubbins.py 
+    --prefix {out_dir}/gubbins 
+    {out_dir}/alignment.aln 
+    --threads 
+    {threads}
+    '''.replace('\n', ' ').replace('    ', '')
+    SNP_DISTS = '''
+    docker run -v $PWD:/data staphb/snp-dists 
+    snp-dists 
+    {out_dir}/gubbins.filtered_polymorphic_sites.fasta > {out_dir}/snp_dists.txt
+    '''.replace('\n', ' ').replace('    ', '')
+    population_analysis = {
+        'ska_build': SKA_BUILD,
+        'ska_align': SKA_ALIGN,
+        'iqtree': IQTREE,
+        'ska_map': SKA_MAP,
+        'fastbaps': FASTBAPS,
+        'run_gubbins': RUN_GUBBINS,
+        'snp_dists': SNP_DISTS
     }
+    ############
+    ## MutTui ##
+    ############
+    MUTTUI = '''
+    MutTui korimuto 
+    -v muttui/vcfs/{query}.lofreq.tidy.vcf 
+    -r muttui/fnas/{reference}.tidy.fna 
+    -o muttui/output/{query} 
+    --multi_contig
+    '''.replace('\n', '').replace('    ', '')
+    muttui = {'muttui': MUTTUI}
     #####################
     ## variant calling ##
     #####################
@@ -180,7 +195,8 @@ def get_dictionary():
     dictionary = {
         'qc': qc,
         'assembly_and_annotation': assembly_and_annotation,
-        'snippy': snippy,
+        'population_analysis': population_analysis,
+        'muttui': muttui,
         'variant_calling': variant_calling
     }
     return(dictionary)

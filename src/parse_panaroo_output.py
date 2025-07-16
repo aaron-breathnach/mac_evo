@@ -1,6 +1,6 @@
 import networkx
 
-def get_core_gets(gene_presense_absence):
+def get_core_genes(gene_presense_absence):
     f = open(gene_presense_absence, 'r')
     core_genes = []
     n = 0
@@ -39,7 +39,7 @@ def make_bed(l):
     return(bed)
 
 def parse_panaroo_output(gene_presence_absence, final_graph, gff, bed):
-    core_genes = get_core_gets(gene_presence_absence)
+    core_genes = get_core_genes(gene_presence_absence)
     single_copy_core_genes = get_single_copy_core_genes(core_genes, final_graph)
     with open(gff, 'r') as f:
         lines = [make_bed(l) for l in f.readlines() if 'pangenome_id' in l and get_pangenome_id(l) in single_copy_core_genes]
