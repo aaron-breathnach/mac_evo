@@ -8,7 +8,7 @@ from utils import get_ref
 cpu_count = os.cpu_count()
 
 parser = argparse.ArgumentParser(prog='run_lofreq_within_host.py', description='Run variant calling for each patient using LoFreq')
-parser.add_argument('--metadata', help='Metadata file', default='metadata.tsv')
+parser.add_argument('--metadata', help='Metadata file', default='data/metadata.tsv')
 parser.add_argument('--config', help='Config file', default='src/config.ini')
 parser.add_argument('--threads', help='Number of threads to use for alignment', default=cpu_count)
 parser.add_argument('--rerun', help='Rerun the analysis', action='store_true')

@@ -1,11 +1,16 @@
 import configparser
-import glob
 import os
 import pandas as pd
-import subprocess
 
-## this script calculates within-cluster distances
+## list fastbaps clusters with isolates from more than one patient
+def list_fastbaps_clusters(metadata, fastbaps):
+    df = pd.merge(metadata, fastbaps, on='isolate')
+    df = df[['patient', 'level_1']].drop_duplicates()
+    df = df.groupby('level_1').size().reset_index(name='n')
+    clusters = df[df['n'] > 1]['level_1'].tolist()
+    return(clusters)
 
+## calculates within-cluster pairwise distances
 def calc_within_cluster_dist(out_dir='ska_x_fastbaps', threads=os.cpu_count()):
     config = configparser.ConfigParser()
     config.read('src/config.ini')
@@ -15,15 +20,16 @@ def calc_within_cluster_dist(out_dir='ska_x_fastbaps', threads=os.cpu_count()):
     snp_dists   = config['population_analysis']['snp_dists']
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-    dat = pd.read_csv('data/fastbaps.tsv', sep='\t')
-    clusters = [int(x) for x in open('data/fastbaps_clusters.txt', 'r').read().splitlines()]
+    metadata = pd.read_csv('data/metadata.tsv', sep='\t')
+    fastbaps = pd.read_csv('data/fastbaps.tsv', sep='\t')
+    clusters = list_fastbaps_clusters(metadata, fastbaps)
     cmds = []
     for cluster in clusters:
         name = 'fastbaps_cluster_' + str(cluster).zfill(2)
         outdir = f'{out_dir}/{name}'
         if not os.path.exists(outdir):
             os.makedirs(outdir)
-        isolates = sorted(dat[dat['level_1'] == int(cluster)]['isolate'].to_list())
+        isolates = sorted(fastbaps[fastbaps['level_1'] == int(cluster)]['isolate'].to_list())
         targets = [f'{outdir}/index.skf',
                    f'{outdir}/alignment.aln',
                    f'{outdir}/gubbins.filtered_polymorphic_sites.fasta',
@@ -31,7 +37,7 @@ def calc_within_cluster_dist(out_dir='ska_x_fastbaps', threads=os.cpu_count()):
         if not os.path.exists(targets[0]):
             with open(f'{outdir}/file_list.txt', 'w') as file_list:
                 for isolate in isolates:
-                    reads = '\t'.join(sorted(glob.glob(f'reads/processed/{isolate}*')))
+                    reads = '\t'.join([f'reads/processed/{isolate}_R{i}_001.qcd.fastq.gz' for i in range(1, 3)])
                     row = f'{isolate}\t{reads}\n'
                     file_list.write(row)
             skabuild = ska_build.format(out_dir=outdir, threads=threads)

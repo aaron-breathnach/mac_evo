@@ -1,10 +1,7 @@
-import os
 import pandas as pd
-from pathlib import Path
-import subprocess
 
 def get_prefixes():
-    prefixes = pd.read_csv('metadata.tsv', sep='\t')['isolate'].tolist()
+    prefixes = pd.read_csv('data/metadata.tsv', sep='\t')['isolate'].tolist()
     return(prefixes)
 
 def get_ref(patient, df):

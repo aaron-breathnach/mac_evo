@@ -16,7 +16,7 @@ def get_chromosomes(fna):
         chromosomes = ', '.join([header.split('|')[-1:][0].strip('\n') for header in f.readlines() if '>' in header])
     return(chromosomes)
 
-def edit_config(reference, snpeff_config):
+def edit_snpeff_config(reference, snpeff_config):
     target = '# Mycobacterium avium strain {}\n'.format(reference)
     f = open(snpeff_config, 'r')
     lines = f.readlines()
@@ -78,12 +78,8 @@ def run_snpEff(dictionary):
     snpeff_main  = config['snpeff']['snpeff_main']
     cmds = []
     reference = dictionary['reference']
-    ## edit snpEff config
-    snpeff_config = '{}/snpEff/snpEff.config'.format(Path.home().as_posix())
-    edit_config(reference, snpeff_config)
-    ## build snpEff database
+    edit_snpeff_config(reference, '{}/snpEff/snpEff.config'.format(Path.home().as_posix()))
     cmds.append(snpEff_build(reference, snpeff_build))
-    ## run snpEff
     patient = dictionary['patient']
     queries = dictionary['query']
     for query in queries:

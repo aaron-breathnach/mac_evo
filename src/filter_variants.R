@@ -246,30 +246,6 @@ filter_vcf <- function(METADATA, GEN_LEN, OUT_DIR) {
   df_1 <- purrr::map(1:length(dat), function(x) dat[[x]][[1]]) %>%
     bind_rows()
   
-  # rm <- df_1 %>%
-  #   inner_join(metadata, by = c("GENOME" = "isolate")) %>%
-  #   mutate(allele_frequency = INFO %>%
-  #            str_replace(".*AF=", "") %>%
-  #            str_replace(".SB=.*", "") %>%
-  #            as.numeric()) %>%
-  #   filter(allele_frequency == 1) %>%
-  #   group_by(GENOME, patient) %>%
-  #   tally() %>%
-  #   ungroup() %>%
-  #   group_by(patient) %>%
-  #   filter(n == max(n)) %>%
-  #   sample_n(1) %>%
-  #   ungroup() %>%
-  #   select(patient, n) %>%
-  #   arrange(patient) %>%
-  #   filter(n > 13) %>%
-  #   select(patient) %>%
-  #   inner_join(metadata, by = "patient") %>%
-  #   pull(isolate)
-  # 
-  # df_1 <- df_1 %>%
-  #   filter(!GENOME %in% rm)
-  
   df_2 <- purrr::map(1:length(dat), function(x) dat[[x]][[2]]) %>%
     bind_rows()
   

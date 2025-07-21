@@ -1,6 +1,7 @@
 library("tidyverse")
 
-parse_dists <- function(f, metadata) {
+## parse within-cluster snp-dists
+parse_dist <- function(f, metadata) {
   
   fastbaps_cluster <- f %>%
     str_split("/") %>%
@@ -28,14 +29,22 @@ parse_dists <- function(f, metadata) {
   }
 }
 
-metadata <- read_delim("data/metadata.tsv")
+parse_dists <- function() {
+  
+  metadata <- read_delim("data/metadata.tsv")
+  
+  files <- list.files("ska_x_fastbaps",
+                      pattern = "snp_dists.txt",
+                      full.names = TRUE,
+                      recursive = TRUE)
+  
+  snp_dists <- purrr::map(files, function(x) parse_dist(x, metadata)) %>%
+    bind_rows()
+  
+  write_tsv(snp_dists, "data/snp_dists.cluster_wide.tsv")
+  
+}
 
-files <- list.files("ska_x_fastbaps",
-                    pattern = "snp_dists.txt",
-                    full.names = TRUE,
-                    recursive = TRUE)
-
-snp_dists <- purrr::map(files, function(x) parse_dists(x, metadata)) %>%
-  bind_rows()
-
-write_tsv(snp_dists, "data/snp_dists.tsv")
+if (sys.nframe() == 0) {
+  parse_dists()
+}

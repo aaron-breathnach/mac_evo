@@ -6,8 +6,8 @@ library(tidyverse)
    make_dndscv_fmt_ref_tab.R [--gff <gff> --out_dir <out_dir>]
 
 Options:
-   --gff Reference genome GFF file
-   --out_dir Output directory
+   --gff Reference genome GFF file [default: prokka/reference/reference.gff]
+   --out_dir Output directory [default: data]
    
 " -> doc
 

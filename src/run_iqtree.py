@@ -1,14 +1,16 @@
 import os
-import configparser
+import subprocess
 
 def run_iqtree():
-    if not os.path.exists('iqtree'):
-        os.makedirs('iqtree')
-    config = configparser.ConfigParser()
-    config.read('src/config.ini')
-    iqtree = config['population_analysis']['iqtree'].format(out_dir='ska')
-    with open('run_iqtree.sh', 'w') as f:
-        f.write(iqtree + '\n')
+    target = 'data/iqtree.treefile'
+    if not os.path.exists(target):
+        if not os.path.exists('tmp'):
+            os.makedirs('tmp')
+        iqtree = 'iqtree -s ska/alignment.aln -m MFP --prefix tmp/iqtree'
+        cp = 'cp tmp/iqtree.treefile data/iqtree.treefile'
+        rm = 'rm -r tmp'
+        cmd = f'{iqtree} && {cp} && {rm}'
+        subprocess.run(cmd, shell=True)
 
 if __name__ == '__main__':
     run_iqtree()

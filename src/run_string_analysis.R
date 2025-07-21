@@ -3,10 +3,10 @@
 library(tidyverse)
 
 "Usage:
-   run_string_analysis.R [--sig_gen <sig_gen> --score <score> --limit <limit> --prefix <prefix> --out_dir <out_dir>]
+   run_string_analysis.R [--mut_dis <mut_dis> --score <score> --limit <limit> --prefix <prefix> --out_dir <out_dir>]
 
 Options:
-   --sig_gen Table containing a list of genes in with enriched mutations [default: data/gen_pos.tsv]
+   --mut_dis Mutational distrubition [default: data/mutational_distribution.tsv]
    --score Minimum required interaction score [default: 400]
    --limit Max number of interactors to show [default: 30]
    --prefix Prefix for output filenames [default: network]
@@ -104,5 +104,11 @@ run_string_analysis <- function(gen_pos, score, limit, prefix, out_dir) {
 }
 
 if (sys.nframe() == 0) {
-  run_string_analysis(opts$sig_gen, opts$score, opts$limit, opts$prefix, opts$out_dir)
+  run_string_analysis(
+    opts$mut_dis,
+    opts$score,
+    opts$limit,
+    opts$prefix,
+    opts$out_dir
+  )
 }

@@ -106,12 +106,13 @@ viz_maf <- function(pid_x_snp, metadata, dat) {
 }
 
 ## output from `run_mutational_distribution_analysis.R`
-res <- read_delim("data/gen_pos.tsv") %>%
+res <- read_delim("data/mutational_distribution.tsv") %>%
   filter(bonferroni <= 0.05) %>%
   select(gene_id, gene_id_prokka, annotation_id, size) %>%
   rename(gene_name = 1)
 
 annotation_ids <- res$annotation_id
+
 ## metadata
 tmp <- read_delim("data/metadata.tsv") %>%
   filter(!multiple_carriage & time_from_diagnosis > 0)

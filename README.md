@@ -1,174 +1,70 @@
 This README outlines the steps involved in the analysis described by Walsh *et al.*. For queries, please contact [Aaron Walsh](mailto:awalsh12@tcd.ie?subject=within-host%20evolution%20of%20MAC).
 
-## Step 01: download the reference genome, Kraken2 database, and CARD database
+## 01
+`python src/download_databases.py`
 
-```
-python src/download_databases.py
-```
+## 02 (lists mycobacterial genes in CARD)
+`Rscript src/list_mycobacterial_args.R`
 
-## Step 02: annotate the reference genome using Prokka
+## 03: run QC
+`python src/run_qc.py`
 
-```
-docker run -v $PWD:/data staphb/prokka:latest \
-prokka \
-databases/GCF_009741445.1/GCF_009741445.1_ASM974144v1_genomic.fna \
---outdir prokka/reference \
---prefix reference \
---genus Mycobacterium \
---usegenus \
---force \
---centre X \
---compliant
-```
+## 04
+`python src/run_assembly_and_annotation.py`
 
-## Step 03: run QC
+## 05
+`python src/run_panaroo.py`
 
-```
-python src/run_qc.py
-sh run_qc.sh
-```
+## 06 (extracts a list of single-copy core genes from the Panaroo outputs)
+`python src/parse_panaroo_output.py`
 
-## Step 04: run *de novo* assembly using SPAdes and annotate the assemblies using Prokka
+## 07
+`python src/run_lofreq_within_host.py`
 
-```
-python src/run_assembly_and_annotation.py
-sh run_spades.sh
-sh run_prokka.sh
-```
+## 08
+`python src/run_snpeff.py`
 
-## Step 05: extract genome lengths from Prokka output
+## 09 (get genome lengths)
+`Rscript src/get_genome_lengths.R`
 
-```
-Rscript src/get_genome_lengths.R
-```
+## 10 (filter LoFreq output)
+`Rscript src/filer_variants.R`
 
-## Step 06: run Snippy
+## 11 (makes a dNDdScv formatted RefCDS file)
+`Rscript src/make_dndscv_fmt_ref_tab.R`
 
-```
-python src/run_snippy.py
-sh run_snippy.py
-```
+## 12
+`Rscript src/run_mutational_distribution_analysis.R`
 
-## Step 07: run whole genome alignment using snippy-core
+## 13 (determines if variants of significant genes persisted over time)
+`Rscript src/persistence_of_sig_gen.R`
 
-```
-python src/run_snippy_core.py
-sh run_snippy_core.sh
-```
+## 14 (runs muttui to determine mutational spectrum)
+`python src/run_muttui.py`
 
-## Step 08: calculate pairwise SNP distance using snp-dists
+## 15 queries significant genes against STRING
+`Rscript src/run_string_analysis.R`
 
-```
-docker run -v $PWD:/data staphb/snp-dists snp-dists snippy/core.aln > data/snp_dists.tsv
-```
+## 16 (generate a species-wide genome alignment using ska) 
+`python src/run_ska.py`
 
-## Step 09: build a phylogentic tree using Gubbins
+## 17
+`python src/run_iqtree.py`
 
-```
-python src/run_run_gubbins.py
-cp gubbins/mavium.final_tree.tre data/
-```
+## 18
+`Rscript src/run_fastbaps.R`
 
-## Step 10: run fastbaps
+## 19 (runs ska within each fastbaps cluster)
+`python src/run_ska_x_fastbaps.py`
 
-```
-Rscript src/run_fastbaps.R --fasta snippy/gubbins.aln --out_dir data
-```
+## 20 (combines cluster-wide snp matrices)
+`Rscript src/parse_dists.R`
 
-## Step 11: list patients containing multiple strains
+## 21 (calculates mutation rate and transmission threshold)
 
-```
-Rscript src/list_reinfected_patients.R \
---snp_dists data/snp_dists.tsv \
---metadata data/metadata.tsv \
---threshold 20
-```
+`Rscript src/get_mut_rat_and_transm_thresh.R`
+## 22: 
 
-## Step 12: run within-host LoFreq
-
-```
-python src/run_lofreq_common_reference.py
-```
-
-## Step 13: run SnpEff
-
-```
-python src/run_snpeff.py data/metadata.tsv .lofreq.vcf.gz
-cp within_host_evolution/*/*.lofreq.snpeff.vcf data/lofreq/within_host/
-```
-
-## Step 14: filter vcfs using the sliding window method described by [Tonkin-Hill et al. (2022)](https://doi.org/10.1038/s41564-022-01238-1)
-
-```
-Rscript src/filter_vcf.R \
---patients data/patients.txt \
---metadata data/metadata.tsv \
---gen_len data/genome_lengths.tsv \
---out_dir data
-```
-
-## Step 15: make a dndscv formatted RefCDS object using the reference GFF
-
-```
-Rscript src/make_dndscv_fmt_ref_tab.R --gff prokka/reference/reference.gff --out_dir data
-```
-
-## Step 16: list mycobacterial antibiotic resistance genes in the CARD database
-
-```
-Rscript src/list_card_mycobacterial_args.R --card data/card --out_dir data
-```
-
-## Step 17: run Panaroo on the genomes of the first isolate from each patient
-
-```
-mkdir -p panaroo/input/
-cp prokka/*/*.gff panaroo/input/
-python src/run_panaroo.py
-sh run_panaroo.sh
-mkdir data/panaroo
-cp panaroo/gene_presence_absence.csv panaroo/gene_data.csv data/panaroo/
-```
-
-## Step 18: run the mutational distribution analysis to identify genes under positive selection
-
-```
-run_mutational_distribution_analysis.R \
---panaroo data/panaroo \
---metadata data/metadata.tsv \
---vcf data/filtered_variants.tsv \
---ref_cds data/ref_cds.tsv \
---myco_args data/card_mycobacterial_args.tsv \
---out_dir data
-```
-
-## Step 19: parse the Panaroo output to make a list of single-copy core genes
-
-```
-python src/parse_panaroo_output.py
-```
-
-## Step 20: run within-host LoFreq
-
-```
-python src/run_lofreq_common_reference.py
-```
-
-##  Step 21: run HaplotypeDeconstructor
-
-```
-Rscript src/run_haplotype_deconstructor.R
-```
-
-## Step 22: run Mash to identify *M. avium* subspecies
-
-```
-python src/run_mash.py
-```
-
-## Step 23: run MutTui
-
-```
-python src/run_muttui.py
-sh run_muttui.sh
-```
+`python src/run_lofreq_common_reference.py`
+## 23
+`Rscript src/run_haplotype_deconstructor.R`

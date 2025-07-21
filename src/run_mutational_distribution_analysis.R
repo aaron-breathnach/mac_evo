@@ -8,7 +8,7 @@ source("src/run_string_analysis.R")
 
 Options:
    --panaroo Path to the directory containing output from Panaroo [default: data/panaroo]
-   --metadata Isolate metadata [default: data/metadata.tsv]
+   --meta Isolate metadata [default: data/metadata.tsv]
    --vcf File containing recombination-filtered variant calls [default: data/filtered_variants.tsv]
    --ref_cds dndscv-formatted CDS table [default: data/ref_cds.tsv]
    --out_dir Output directory [default: data]
@@ -27,7 +27,6 @@ panaroo_to_vcf <- function(pid, dat, metadata, pres_abs) {
   
   genes <- get_gene_to_anno(pres_abs)$gene_id
   
-  ## loci that are shared with GCF_009741445.1 + the patient's reference genome
   gen_pre_abs <- pres_abs %>%
     dplyr::rename(gene_id = 1) %>%
     select(gene_id, all_of(ref_genome)) %>%
@@ -96,11 +95,11 @@ run_poisson_test <- function(dat, metadata, num_mut, total_length, gene_data) {
   
 }
 
-get_gen_pos <- function(dndscv, sel, sizes, dn_ds) {
+add_gene_info <- function(prok_to_anno, sel, sizes, dn_ds) {
   
   left_join(sel, sizes, by = "gene_id") %>%
     inner_join(dn_ds, by = "gene_id") %>%
-    inner_join(dndscv, by = "annotation_id") %>%
+    inner_join(prok_to_anno, by = "annotation_id") %>%
     mutate(p = replace_na(p, 1)) %>%
     mutate(pos = pos / 1e6) %>%
     filter(!grepl("~~~", gene_id_prokka)) %>%
@@ -112,32 +111,28 @@ get_gen_pos <- function(dndscv, sel, sizes, dn_ds) {
   
 }
 
-run_mutational_distribution_analysis <- function(PANAROO,
-                                                 METADATA,
-                                                 VARIANTS,
-                                                 REF,
-                                                 OUT_DIR = "data") {
+run_mutational_distribution_analysis <- function(
+    panaroo,
+    meta,
+    vcf,
+    ref_cds,
+    out_dir
+) {
   
-  dir.create(OUT_DIR, FALSE, TRUE)
+  dir.create(out_dir, FALSE, TRUE)
   
-  ## panaroo presence/absence
-  gene_presence_absence <- sprintf("%s/gene_presence_absence.csv", PANAROO) %>%
+  pres_abs <- sprintf("%s/gene_presence_absence.csv", panaroo) %>%
     read_delim()
   
-  gene_to_anno <- get_gene_to_anno(gene_presence_absence)
+  gene_to_anno <- get_gene_to_anno(pres_abs)
   
-  ## panaroo gene data
-  gene_data <- sprintf("%s/gene_data.csv", PANAROO) %>%
+  gene_data <- sprintf("%s/gene_data.csv", panaroo) %>%
     read_delim(col_select = c(4, 6)) %>%
     inner_join(gene_to_anno, by = "annotation_id") %>%
     mutate(gene_length = nchar(dna_sequence)) %>%
     select(1, 3, 4)
   
-  ## genome metadata
-  metadata <- read_delim(METADATA)
-  
-  ## variants
-  dat <- read_delim(VARIANTS)
+  dat <- read_delim(vcf)
   
   dat$annotation_id <- dat$INFO %>%
     purrr::map(function(x) str_split(x, "\\|") %>% unlist() %>% nth(5)) %>%
@@ -147,25 +142,27 @@ run_mutational_distribution_analysis <- function(PANAROO,
     purrr::map(function(x) str_split(x, "\\|") %>% unlist() %>% nth(2)) %>%
     unlist()
   
+  metadata <- read_delim(meta)
+  
   patients <- metadata %>%
     filter(bracken_pass & !multiple_carriage) %>%
     pull(patient) %>%
     unique()
   
   dat <- patients %>%
-    purrr::map(function(x) panaroo_to_vcf(x, dat, metadata, gene_presence_absence)) %>%
+    purrr::map(function(x) panaroo_to_vcf(x, dat, metadata, pres_abs)) %>%
     bind_rows() %>%
     filter(variant %in% c("missense_variant", "synonymous_variant")) %>%
     filter(!grepl("group_", gene_id))
   
-  no_mutations <- dat %>%
+  num_mut <- dat %>%
     filter(variant == "missense_variant") %>%
     nrow()
   
   total_length <- sum(gene_data$gene_length)
-  sel <- run_poisson_test(dat, metadata, no_mutations, total_length, gene_data)
   
-  ## count the number of patients in whom variants were detected
+  sel <- run_poisson_test(dat, metadata, num_mut, total_length, gene_data)
+  
   sizes <- dat %>%
     inner_join(metadata, by = c("GENOME" = "isolate")) %>%
     select(patient, gene_id) %>%
@@ -173,8 +170,7 @@ run_mutational_distribution_analysis <- function(PANAROO,
     group_by(gene_id) %>%
     summarise(size = n())
   
-  ## map Prokka gene names to annotation identifiers
-  prok_to_anno <- read_delim(REF, col_select = c(1, 5)) %>%
+  prok_to_anno <- read_delim(ref_cds, col_select = c(1, 5)) %>%
     dplyr::rename(locus_tag = 1, pos = 2) %>%
     mutate(gene_id_prokka = gsub(".*\\:", "", locus_tag)) %>%
     filter(!grepl("IMFOIEKC_", gene_id_prokka)) %>%
@@ -183,24 +179,16 @@ run_mutational_distribution_analysis <- function(PANAROO,
   
   dn_ds <- calc_dn_ds(dat, metadata)
   
-  gen_pos <- get_gen_pos(prok_to_anno, sel, sizes, dn_ds)
+  out <- add_gene_info(prok_to_anno, sel, sizes, dn_ds)
   
-  write_tsv(gen_pos, sprintf("%s/gen_pos.tsv", OUT_DIR))
+  write_tsv(out, sprintf("%s/mutational_distribution.tsv", out_dir))
   
 }
-
-PANAROO <- opts$panaroo
-METADATA <- opts$metadata
-PATIENTS <- opts$patients
-VARIANTS <- opts$vcf
-REF <- opts$ref_cds
-ARG <- opts$myco_args
-OUT_DIR <- opts$out_dir
 
 if (sys.nframe() == 0) {
   run_mutational_distribution_analysis(
     opts$panaroo,
-    opts$metadata,
+    opts$meta,
     opts$vcf,
     opts$ref_cds,
     opts$out_dir
