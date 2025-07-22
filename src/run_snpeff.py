@@ -60,7 +60,7 @@ def snpEff_build(reference, snpeff_build):
     cmd = ' && '.join(cmds)
     return(cmd)
 
-def run_snpEff(dictionary):
+def snpEff(dictionary):
     cmds = []
     config = configparser.ConfigParser()
     config.read('src/config.ini')
@@ -92,7 +92,7 @@ def run_snpeff():
     cmds = []
     for patient in patients:
         dictionary = get_ref(patient, dat)
-        cmd = run_snpEff(dictionary)
+        cmd = snpEff(dictionary)
         cmds.append(cmd)
     with open('run_within_host_snpeff.sh', 'w') as f:
         for cmd in cmds:
