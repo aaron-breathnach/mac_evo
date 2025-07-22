@@ -55,8 +55,11 @@ def download_all_ref():
         if not any([os.path.exists(x) for x in [filename, filename.replace('.gz', '')]]):
             subprocess.run('wget {} -O {} && gunzip {}'.format(url, filename, filename), shell=True)
 
-if __name__ == '__main__':
+def download_databases():
     download_type_strain()
     download_kraken_database()
     download_card_data()
     download_all_ref()
+
+if __name__ == '__main__':
+    download_databases()

@@ -1,5 +1,4 @@
 import os
-import subprocess
 
 def run_iqtree():
     target = 'data/iqtree.treefile'
@@ -10,7 +9,8 @@ def run_iqtree():
         cp = 'cp tmp/iqtree.treefile data/iqtree.treefile'
         rm = 'rm -r tmp'
         cmd = f'{iqtree} && {cp} && {rm}'
-        subprocess.run(cmd, shell=True)
+        with open('run_iqtree.sh', 'w') as f:
+            f.write(cmd + '\n')
 
 if __name__ == '__main__':
     run_iqtree()

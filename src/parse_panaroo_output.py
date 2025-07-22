@@ -47,8 +47,8 @@ def parse_panaroo_output(gene_presence_absence, final_graph, gff, bed):
         [f.write(l + '\n') for l in lines]
 
 if __name__ == 'main':
-    gene_presence_absence = 'panaroo/results/gene_presence_absence_filt_pseudo_length.Rtab'
-    final_graph = 'panaroo/results/final_graph.gml'
-    gff = 'panaroo/results/postpanaroo_gffs/reference_panaroo.gff'
-    bed = 'panaroo/results/single_copy_core_genes.bed'
-    parse_panaroo_output(gene_presence_absence, final_graph, gff, bed)
+    pa = 'panaroo/output/gene_presence_absence_filt_pseudo_length.Rtab'
+    final_graph = 'panaroo/output/final_graph.gml'
+    gff = 'panaroo/output/postpanaroo_gffs/reference_panaroo.gff'
+    bed = 'panaroo/output/single_copy_core_genes.bed'
+    parse_panaroo_output(pa, final_graph, gff, bed)

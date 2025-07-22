@@ -1,7 +1,7 @@
 import argparse
 import os
 from run_lofreq import run_lofreq
-import utils
+from utils import get_prefixes
 
 cpu_count = os.cpu_count()
 
@@ -15,14 +15,16 @@ args = parser.parse_args()
 if __name__ == '__main__':
     index = 'databases/GCF_009741445.1/GCF_009741445.1_ASM974144v1_genomic.fna'
     with open('run_lofreq_common_reference.sh', 'w') as f:
-        prefixes = utils.get_prefixes()
+        prefixes = get_prefixes()
         cmds = []
         for prefix in prefixes:
-            cmd = run_lofreq(configuration_file=args.config,
-                             prefix=prefix,
-                             out_dir='variant_calling',
-                             index=index,
-                             threads=args.threads,
-                             use_bed=True,
-                             rerun=args.rerun)
+            cmd = run_lofreq(
+                configuration_file=args.config,
+                prefix=prefix,
+                out_dir='variant_calling',
+                index=index,
+                threads=args.threads,
+                use_bed=True,
+                rerun=args.rerun
+            )
             f.write(cmd + '\n')

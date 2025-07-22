@@ -21,7 +21,7 @@ def edit_snpeff_config(reference, snpeff_config):
     f = open(snpeff_config, 'r')
     lines = f.readlines()
     if target in lines:
-        print(f'Reference {reference} alreay in {snpeff_config}...')
+        print(f'Reference {reference} already in {snpeff_config}...')
     else:
         print(f'Adding reference {reference} to {snpeff_config}...')
         n = 0
@@ -60,36 +60,31 @@ def snpEff_build(reference, snpeff_build):
     cmd = ' && '.join(cmds)
     return(cmd)
 
-def snpEff_main(inp_vcf, out_dir, reference, snpeff_main):
-    if not inp_vcf.endswith('.gz'):
-        cmd_1 = 'gsed -i \'s/gnl|X|//g\' {}'.format(inp_vcf)
-    else:
-        cmd_1 = 'zcat < {} | gsed \'s/gnl|X|//g\' > {}'.format(inp_vcf, inp_vcf.rstrip('.gz'))
-        inp_vcf = inp_vcf.rstrip('.gz')
-    out_vcf = '{}/{}'.format(out_dir, os.path.basename(inp_vcf).replace('.vcf', '.snpeff.vcf'))
-    cmd_2 = snpeff_main.format(Path.home().as_posix(), reference, inp_vcf, out_vcf)
-    cmd = f'{cmd_1} && {cmd_2}'
-    return(cmd)
-
 def run_snpEff(dictionary):
+    cmds = []
     config = configparser.ConfigParser()
     config.read('src/config.ini')
-    snpeff_build = config['snpeff']['snpeff_build']
-    snpeff_main  = config['snpeff']['snpeff_main']
-    cmds = []
-    reference = dictionary['reference']
-    edit_snpeff_config(reference, '{}/snpEff/snpEff.config'.format(Path.home().as_posix()))
-    cmds.append(snpEff_build(reference, snpeff_build))
+    ref = dictionary['reference']
+    home = Path.home().as_posix()
+    ## edit snpEff config file
+    snpeff_config = '{}/snpEff/snpEff.config'.format(home)
+    edit_snpeff_config(ref, snpeff_config)
+    ## build snpEff database
+    snpeff_build = snpEff_build(ref, config['snpeff']['snpeff_build'])
+    cmds.append(snpeff_build)
+    ## run snpEff
     patient = dictionary['patient']
     queries = dictionary['query']
     for query in queries:
         out_dir = 'within_host_evolution/{}'.format(patient)
-        inp_vcf = '{}/{}.lofreq.vcf'.format(out_dir, query)
-        out_vcf = inp_vcf.strip('.vcf') + '.snpeff.vcf'
-        if not os.path.exists(out_vcf):
-            cmds.append(snpEff_main(inp_vcf, out_dir, reference, snpeff_main))
-    cmd = ' && '.join([cmd for cmd in cmds if len(cmd) > 0])
-    return(cmd)
+        inp = '{}/{}.lofreq.vcf'.format(out_dir, query)
+        out = inp.replace('.vcf', '.snpeff.vcf')
+        if not os.path.exists(out):
+            cmd_1 = config['snpeff']['fix_vcf'].format(x=inp)
+            cmd_2 = config['snpeff']['snpeff_main'].format(home, ref, inp, out)
+            cmd = ' && '.join([cmd_1, cmd_2])
+            cmds.append(cmd)
+    return(' && '.join(cmds))
 
 def run_snpeff():
     dat = pd.read_csv('data/metadata.tsv', sep='\t')
@@ -101,7 +96,7 @@ def run_snpeff():
         cmds.append(cmd)
     with open('run_within_host_snpeff.sh', 'w') as f:
         for cmd in cmds:
-            if len(cmd.replace(' ', '')) > 0:
+            if len(cmd) > 0:
                 f.write(cmd + '\n')
 
 if __name__ == '__main__':

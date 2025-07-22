@@ -11,7 +11,9 @@ def list_fastbaps_clusters(metadata, fastbaps):
     return(clusters)
 
 ## calculates within-cluster pairwise distances
-def calc_within_cluster_dist(out_dir='ska_x_fastbaps', threads=os.cpu_count()):
+def calc_within_cluster_dist():
+    out_dir = 'ska_x_fastbaps'
+    threads = os.cpu_count()
     config = configparser.ConfigParser()
     config.read('src/config.ini')
     ska_build   = config['population_analysis']['ska_build']

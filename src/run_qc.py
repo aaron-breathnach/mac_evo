@@ -42,17 +42,15 @@ def run_qc(prefix, threads, config, run_kraken_bracken, rerun):
     cmd = ' && '.join(cmd)
     return(cmd)
 
-def write_qc_shell_script(threads, cfg, run_kraken_bracken, rerun):
+def main(threads, cfg, run_kraken_bracken, rerun):
     config = configparser.ConfigParser()
     config.read(cfg)
     cmds = [run_qc(prefix, threads, config, run_kraken_bracken, rerun) for prefix in get_prefixes()]
     with open('run_qc.sh', 'w') as f:
-        for cmd in cmds:
-            if len(cmd) > 0:
-                f.write(cmd + '\n')
+        [f.write(cmd + '\n') for cmd in cmds]
 
 if __name__ == '__main__':
-    write_qc_shell_script(
+    main(
         threads=args.threads,
         cfg=args.cfg,
         run_kraken_bracken=args.run_kraken_bracken,
