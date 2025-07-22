@@ -1,95 +1,70 @@
 library(tidyverse)
-
-calc_perc_pers <- function(pid, metadata, dat) {
-  
-  meta <- metadata %>%
-    filter(patient == pid & time_from_diagnosis > 0) %>%
-    arrange(time_from_diagnosis)
-  
-  n <- nrow(meta) - 1
-  
-  out <- c()
-  
-  for (i in 1:n) {
-    
-    isolate_1 <- meta[[i, "isolate"]]
-    isolate_2 <- meta[[i + 1, "isolate"]]
-    
-    tmp <- dat %>%
-      filter(GENOME %in% c(isolate_1, isolate_2)) %>%
-      mutate(snp = sprintf("%s___%s", CHROM, POS)) %>%
-      select(snp, GENOME) %>%
-      arrange(snp) %>%
-      mutate(timepoint = ifelse(GENOME == isolate_1, "T1", "T2")) %>%
-      select(-GENOME) %>%
-      mutate(value = 1) %>%
-      distinct() %>%
-      pivot_wider(names_from = "timepoint", values_from = "value", values_fill = 0)
-    
-    if (nrow(tmp) > 0) {
-      
-      tmp <- tmp %>%
-        mutate(value = ifelse(T1 == T2, 1, 0)) %>%
-        summarise(perc = 100 * sum(value) / n()) %>%
-        mutate(timepoint = sprintf("T%s to T%s", i, i + 1)) %>%
-        mutate(patient = pid) %>%
-        select(3, 2, 1)
-      
-    } else {
-      
-      tmp <- c()
-      
-    }
-    
-    out <- rbind(out, tmp)
-    
-  }
-  
-  return(out)
-  
-}
+source("src/compare_first_vs_last.R")
 
 make_figure_s5 <- function() {
   
-  metadata <- read_delim("data/metadata.tsv") %>%
-    filter(bracken_pass & !multiple_carriage)
+  relab <- readRDS("data/haplotype_deconstructor.RDS")[["haplotypes"]]
+  metadata <- read_delim("data/metadata.tsv")
   
-  patients <- metadata %>%
-    filter(time_from_diagnosis > 0) %>%
-    group_by(patient) %>%
-    tally() %>%
-    filter(n > 1) %>%
+  tmp <-  compare_first_vs_last(relab, metadata, threshold = 0, long = FALSE)
+  
+  dat <- tmp %>%
+    select(patient, persist) %>%
+    filter(nchar(persist) > 0) %>%
+    separate_longer_delim(persist, ",") %>%
+    distinct() %>%
+    rename(haplotype = 2)
+  
+  patients_a <- tmp %>%
+    filter(n_persist == 0) %>%
     pull(patient)
   
-  dat <- read_delim("data/filtered_variants.tsv") %>%
-    filter(GENOME %in% metadata$isolate & grepl("missense", INFO))
+  patients_b <- inner_join(relab, metadata, by = "isolate") %>%
+    filter(patient != "VT_198") %>%
+    group_by(patient) %>%
+    filter(time_from_diagnosis == max(time_from_diagnosis)) %>%
+    ungroup() %>%
+    inner_join(dat, by = c("patient", "haplotype")) %>%
+    group_by(patient) %>%
+    summarise(rel_contribution = sum(rel_contribution)) %>%
+    filter(rel_contribution < 50) %>%
+    pull(patient)
   
-  res <- map(patients, function(x) calc_perc_pers(x, metadata, dat)) %>%
-    bind_rows()
+  patients <- c(patients_a, patients_b)
   
-  MEAN <- mean(res$perc)
+  meta <- metadata %>%
+    rename(time = time_from_diagnosis) %>%
+    select(patient, isolate, time) %>%
+    group_by(patient) %>%
+    filter(time == min(time) | time == max(time)) %>%
+    ungroup() %>%
+    mutate(timepoint = ifelse(time == min(time), "First", "Last")) %>%
+    filter(patient %in% patients) %>%
+    select(patient, isolate, timepoint)
   
-  label <- paste0("Mean: ", round(MEAN, 2), "%")
+  df <- inner_join(meta, relab, by = "isolate") %>%
+    filter(patient != "VT_198") %>%
+    mutate(patient = patient %>%
+             str_replace("P", "P0") %>%
+             str_replace("VT_", "V") %>%
+             str_replace("Wetzstein_", "W"))
   
-  dens <- density(res$perc)
+  p <- ggplot(df, aes(x = timepoint, y = rel_contribution)) +
+    facet_wrap(~ patient) +
+    geom_bar(aes(fill = haplotype),
+             stat = "identity",
+             position = "fill",
+             colour = "black") +
+    scale_fill_brewer(palette = "Set3") +
+    theme_bw(base_size = 12.5) +
+    theme(axis.title = element_text(face = "bold"),
+          legend.title = element_text(face = "bold"),
+          panel.grid = element_blank(),
+          strip.text = element_text(face = "bold")) +
+    labs(x = "Time-point",
+         y = "Relative haplotype frequency",
+         fill = "Haplotype")
   
-  p <- ggplot(res, aes(x = perc)) +
-    geom_density(fill = "steelblue") +
-    geom_vline(xintercept = MEAN,
-               linetype = "dashed",
-               colour = "grey",
-               linewidth = 0.75) +
-    theme_classic(base_size = 12.5) +
-    theme(axis.title = element_text(face = "bold")) +
-    scale_x_continuous(expand = expansion(mult = c(0, 0.1))) +
-    scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-    annotate(geom = "text",
-             x = 1.25 * MEAN,
-             y = max(dens$y),
-             label = label,
-             hjust = 0) +
-    labs(x = "Percentage of persistent nonsynonymous variants", y = "Density")
-  
-  ggsave("plots/figure_s5.png", p, width = 6, height = 4)
+  ggsave("plots/figure_s5.png", p, width = 7.5, height = 7.5)
   
 }

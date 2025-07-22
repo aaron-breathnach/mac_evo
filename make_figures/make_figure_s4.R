@@ -1,206 +1,225 @@
 library(tidyverse)
 
-shift_axis <- function(p, xmin, xmax, y = 0){
+map_snp2gen <- function(mat, gff = "prokka/reference/reference.gff") {
   
-  g <- ggplotGrob(p)
+  snps <- tibble(snp = rownames(mat)) %>%
+    separate_wider_delim(
+      snp,
+      delim = ".",
+      names = c("chrom", "pos", "mut"),
+      cols_remove = FALSE
+    ) %>%
+    mutate(pos = as.numeric(pos))
   
-  ax <- g[["grobs"]][g$layout$name == "axis-b"][[1]]
+  ref <- rtracklayer::readGFF(gff) %>%
+    as.data.frame() %>%
+    filter(type == "gene") %>%
+    mutate(chrom = gsub(".*\\|", "", seqid)) %>%
+    select(chrom, start, end, gene) %>%
+    as_tibble()
   
-  p + 
-    annotation_custom(
-      grid::grobTree(ax, vp = grid::viewport(y = 1, height = sum(ax$height))), 
-      ymax = y, ymin = y
-    ) +
-    annotate("segment", y = 0, yend = 0, x = xmin, xend = xmax, 
-             arrow = arrow(length = unit(0.1, "inches"))) +
-    theme(axis.text.x = element_blank(), 
-          axis.ticks.x = element_blank())
+  res <- fuzzyjoin::fuzzy_inner_join(
+    snps,
+    ref,
+    by = c("chrom" = "chrom", "pos" = "start", "pos" = "end"),
+    match_fun = list(`==`, `>=`, `<=`)
+  ) %>%
+    select(-chrom.y) %>%
+    rename(chrom = chrom.x)
+  
+  dup_snp <- res %>%
+    group_by(snp) %>%
+    tally() %>%
+    filter(n > 1) %>%
+    pull(snp)
+  
+  part_1 <- res %>%
+    filter(!snp %in% dup_snp)
+  
+  part_2 <- res %>%
+    filter(snp %in% dup_snp) %>%
+    drop_na() %>%
+    group_by(snp) %>%
+    sample_n(1) %>%
+    ungroup()
+  
+  rbind(part_1, part_2) %>%
+    separate_wider_delim(mut, "_", names = c("ref", "alt")) %>%
+    select(snp, chrom, pos, ref, alt, gene)
   
 }
 
-plot_timelines <- function(pid, timelines) {
+mat2dat <- function(x) {
+  x %>%
+    as.data.frame() %>%
+    rownames_to_column("isolate") %>%
+    as_tibble()
+}
+
+## haplotype frequency x snp frequency plots
+.viz_hf_x_maf <- function(hap, metadata, hap_x_snp, mat_hap_sub, mat_snp) {
   
-  p_inp <- timelines %>%
-    filter(patient == pid) %>%
-    group_by(patient, date) %>%
-    summarise(event = paste0(rev(event), collapse = "<br>")) %>%
+  snps <- hap_x_snp %>%
+    filter(haplotype == hap) %>%
+    pull(snp)
+  
+  tmp <- mat_hap_sub %>%
+    filter(haplotype == hap)
+  
+  haps <- tmp %>%
+    dplyr::rename(id = 2, frequency = 3) %>%
+    mutate(feature = "HF")
+  
+  isolates <- mat_hap_sub$isolate
+  
+  p_inp <- mat2dat(mat_snp) %>%
+    pivot_longer(!isolate, names_to = "id", values_to = "frequency") %>%
+    filter(isolate %in% isolates & id %in% snps) %>%
+    mutate(haplotype = hap) %>%
+    mutate(feature = "HF * MAF") %>%
+    select(isolate, id, frequency, feature) %>%
+    inner_join(tmp[,c(1,3)], by = "isolate") %>%
+    mutate(frequency = frequency * abundance) %>%
+    select(1:4) %>%
+    bind_rows(haps) %>%
+    inner_join(metadata, by = "isolate")
+  
+  p_inp_a <- p_inp %>%
+    filter(feature != "HF")
+  
+  p_inp_b <- p_inp %>%
+    filter(feature == "HF")
+  
+  ggplot(p_inp_a, aes(x = time_from_diagnosis, y = frequency)) +
+    geom_line(aes(group = id),
+              show.legend = FALSE,
+              linewidth = 0.1,
+              colour = "steelblue",
+              alpha = 0.25) +
+    geom_line(data = p_inp_b, aes(group = id),
+              show.legend = FALSE,
+              linewidth = 1,
+              colour = "firebrick",
+              linetype = "dashed") +
+    theme_classic(base_size = 12.5) +
+    theme(axis.title = element_text(face = "bold"),
+          legend.title = element_blank(),
+          plot.title = element_text(face = "bold")) +
+    labs(x = "Time from diagnosis (years)",
+         y = "Frequency",
+         title = hap)
+  
+}
+
+viz_hf_x_maf <- function(pid, metadata, mat_hap, mat_snp, hap_x_snp) {
+  
+  if (!dir.exists("output")) dir.create("output")
+  
+  meta <- metadata %>%
+    filter(patient == pid)
+  
+  mat_hap_sub <- mat2dat(mat_hap) %>%
+    filter(isolate %in% meta$isolate) %>%
+    pivot_longer(!isolate, names_to = "haplotype", values_to = "abundance") %>%
+    filter(abundance > 0)
+  
+  haplotypes <- mat_hap_sub %>%
+    filter(abundance > 0) %>%
+    group_by(haplotype) %>%
+    tally() %>%
     ungroup() %>%
-    mutate(type = ifelse(grepl("treatment", event), "treatment", "isolate")) %>%
-    mutate(shape = ifelse(type == "isolate", "1f9ec", "1f48a"))
+    filter(n >= 3) %>%
+    pull(haplotype) %>%
+    sort()
   
-  n <- nrow(p_inp)
+  mat_hap_sub <- mat_hap_sub %>%
+    filter(haplotype %in% haplotypes)
   
-  p_inp$y <- rep(c(1, -1), ceiling(n / 2))[1:n]
+  plot_list <- haplotypes %>%
+    purrr::map(function(x) .viz_hf_x_maf(x, meta, hap_x_snp, mat_hap_sub, mat_snp))
   
-  vjust <- p_inp %>%
-    mutate(vjust = case_when(
-      y == -1 & !grepl("<br>", event) ~ +2.75,
-      y == 1 &  !grepl("<br>", event) ~ -1.75,
-      y == -1 & grepl("<br>", event)  ~ +1.75,
-      y == 1 &  grepl("<br>", event)  ~ -0.75
-    )) %>%
-    pull(vjust)
+  num_hap <- length(haplotypes)
   
-  # vjust <- map(p_inp$y, function(x) if (x < 0) {2.5} else {-1.5})
+  num_row <- ceiling(num_hap / 3)
   
-  min_year <- lubridate::year(min(p_inp$date) - 365)
-  max_year <- lubridate::year(max(p_inp$date) + 365)
-  
-  years <- max_year - min_year
-  
-  x_breaks <- c()
-  for (i in 0:years) {
-    x_breaks <- c(x_breaks, as.Date(min_year + i))
+  if (num_row == 1) {
+    h <- 3.75
+    w <- num_hap * 3.75
+  } else {
+    h <- num_row * 3.75
+    w <- 11.25
   }
   
-  x_min <- lubridate::as_date(sprintf("%s-01-01", min_year))
-  x_max <- lubridate::as_date(sprintf("%s-06-01", max_year))
+  num_col <- ifelse(num_hap > 3, 3, num_hap)
   
-  for (i in 1:nrow(p_inp)) {
-    if (grepl("First", p_inp[[i, 3]])) {
-      date_1 <- p_inp[[i, 2]]
-    }
-    if (grepl("Mutation", p_inp[[i, 3]])) {
-      date_2 <- p_inp[[i, 2]]
-    }
-  }
-  
-  y_min <- min(p_inp$y)
-  y_max <- max(p_inp$y)
-  
-  p <- p_inp %>%
-    ggplot(aes(date, y)) +
-    annotate("rect",
-             xmin = date_1, xmax = date_2, 
-             ymin = y_min, ymax = y_max,
-             alpha = .1,
-             fill = "firebrick") +
-    ggalt::geom_lollipop(point.size = 0, colour = "grey") +
-    emoGG::geom_emoji(emoji = p_inp$shape) +
-    ggtext::geom_richtext(aes(x = date, y = y, label = event),
-                          hjust = 0.5,
-                          vjust = vjust, 
-                          size = 4,
-                          fill = NA, 
-                          label.color = NA,
-                          label.padding = grid::unit(rep(0, 4), "pt")) +
-    theme(aspect.ratio = 1,
-          axis.title = element_blank(),
-          axis.text.y = element_blank(),
-          axis.ticks.y = element_blank(),
-          axis.line = element_blank(),
-          axis.text.x = element_text(size = 12.5),
-          plot.title = element_text(size = 15, face = "bold")) +
-    scale_x_date(date_breaks = "1 year",
-                 date_labels = "%Y") +
-    scale_y_continuous(limits = c(1.5 * min(p_inp$y), 1.5 * max(p_inp$y))) +
-    expand_limits(x = c(x_min, x_max), y = 1.2)
-  
-  title <- str_replace(pid, "P", "Patient ")
-  
-  shift_axis(p, x_min, x_max) +
-    theme(panel.grid = element_blank(),
-          panel.background = element_blank()) +
-    ggtitle(title)
+  cowplot::plot_grid(plotlist = plot_list, nrow = num_row, ncol = num_col)
   
 }
 
 make_figure_s4 <- function() {
   
-  patient_metadata <- read_delim("data/patient_info.tsv") %>%
-    filter(Treated == "Yes") %>%
-    mutate(patient = gsub("P", "P0", patient))
+  haplo <- readRDS("data/haplotype_deconstructor.RDS")
   
-  isolate_metadata <- read_delim("data/metadata.tsv") %>%
-    mutate(patient = gsub("P", "P0", patient)) %>%
-    filter(study == "Present" & !multiple_carriage & patient %in% patient_metadata$patient)
+  hap_x_snp <- haplo$decomposed$signatures %>%
+    as.data.frame() %>%
+    rownames_to_column("snp") %>%
+    pivot_longer(!snp, names_to = "haplotype", values_to = "loading") %>%
+    filter(loading > 0)
   
-  args <- read_delim("data/card_mycobacterial_args.tsv")
+  ## haplotype abundances
+  mat_hap <- haplo$decomposed$samples
+  ## minor allele frequencies
+  mat_snp <- t(haplo$decomposed$observed)
   
-  dat <- read_delim("data/filtered_variants.tsv") %>%
-    filter(GENOME %in% isolate_metadata$isolate)
+  ## correlation analysis
+  # corr <- Hmisc::rcorr(x = mat_hap, y = mat_snp)
+  # 
+  # rval <- corr$r[1:ncol(mat_hap), (ncol(mat_hap) + 1):ncol(corr$r)] %>%
+  #   as.data.frame() %>%
+  #   rownames_to_column("haplotype") %>%
+  #   pivot_longer(!haplotype, names_to = "snp", values_to = "r")
+  # 
+  # order <- corr$r[1:ncol(mat_hap), (ncol(mat_hap) + 1):ncol(corr$r)] %>%
+  #   t() %>%
+  #   dist() %>%
+  #   hclust() %>%
+  #   as.dendrogram() %>%
+  #   labels()
+  # 
+  # rval$snp <- factor(rval$snp, levels = order)
+  # 
+  # p1 <- ggplot(rval, aes(x = haplotype, y = snp)) +
+  #   geom_tile(aes(fill = r)) +
+  #   theme_minimal(base_size = 12.5) +
+  #   theme(axis.text.y = element_blank(),
+  #         axis.ticks.y = element_blank(),
+  #         axis.title = element_text(face = "bold"),
+  #         legend.title = element_text(face = "bold.italic")) +
+  #   scale_fill_gradient2(
+  #     low = "blue",
+  #     mid = "white",
+  #     high = "red"
+  #   ) +
+  #   scale_x_discrete(expand = expansion(mult = c(0, 0))) +
+  #   scale_y_discrete(expand = expansion(mult = c(0, 0))) +
+  #   labs(x = "Haplotype", y = "SNP", fill = "r")
   
-  dat$allele_frequency <- dat$INFO %>%
-    str_replace(".SB=.*", "") %>%
-    str_replace(".*=", "") %>%
-    as.numeric()
+  metadata <- read_delim("data/metadata.tsv")
   
-  dat$gene <- map(dat$INFO, function(x) {
-    str_split(x, "\\|") %>%
-      unlist() %>%
-      nth(4)
-  }) %>%
-    unlist()
-  
-  antibiotics <- c("Azithromycin", "Clarithromycin", "Ethambutol", "Rifampicin")
-  
-  df <- dat %>%
-    rename(isolate = 1) %>%
-    filter(grepl("missense_variant", INFO)) %>%
-    filter(nchar(gene) < 14) %>%
-    select(isolate, gene, allele_frequency) %>%
-    mutate(gene = str_replace(gene, "_.*", "")) %>%
-    inner_join(args, by = "gene") %>%
-    inner_join(isolate_metadata, by = "isolate") %>%
-    inner_join(patient_metadata, by = "patient") %>%
-    separate_longer_delim(antibiotic, ";") %>%
-    filter(antibiotic %in% antibiotics)
-  
-  DF <- df %>%
-    select(patient, antibiotic) %>%
-    distinct() %>%
-    separate_longer_delim(antibiotic, ";") %>%
-    separate_longer_delim(antibiotic, " & ") %>%
-    distinct() %>%
-    filter(antibiotic %in% antibiotics) %>%
-    mutate(value = 1) %>%
-    pivot_wider(names_from = "antibiotic", values_from = "value", values_fill = 0) %>%
-    column_to_rownames("patient")
-  
-  acquisitions <- df %>%
-    select(patient, gene, antibiotic, date_of_collection) %>%
-    group_by(patient, gene) %>%
-    filter(date_of_collection == min(date_of_collection)) %>%
-    ungroup() %>%
-    mutate(gene = paste0("*", gene, "*")) %>%
-    group_by(patient, date_of_collection) %>%
-    summarise(gene = paste0(unique(gene), collapse = " + ")) %>%
-    ungroup() %>%
-    mutate(event = sprintf(
-      "Mutation%s in %s",
-      ifelse(str_count(gene, "\\+") > 0, "s", ""),
-      gene)) %>%
-    select(patient, event, date_of_collection) %>%
-    rename(date = 3)
-  
-  collections <- isolate_metadata %>%
-    filter(patient %in% unique(df$patient)) %>%
-    select(patient, date_of_collection) %>%
-    arrange(date_of_collection) %>%
+  pids <- metadata %>%
+    filter(multiple_carriage) %>%
     group_by(patient) %>%
-    mutate(event = sprintf("%s isolate", str_to_sentence(english::ordinal(row_number())))) %>%
-    ungroup() %>%
-    select(1, 3, 2) %>%
-    rename(date = 3)
+    tally() %>%
+    filter(n > 3) %>%
+    pull(patient)
   
-  treatments <- patient_metadata %>%
-    select(patient, `Start of treatment`, `End of treatment`) %>%
-    filter(patient %in% rownames(DF)) %>%
-    pivot_longer(!patient, names_to = "event", values_to = "date") %>%
-    mutate(date = lubridate::dmy(date))
+  p2 <- viz_hf_x_maf("Wetzstein_033", metadata, mat_hap, mat_snp, hap_x_snp)
   
-  timelines <- rbind(acquisitions, treatments, collections) %>%
-    arrange(date) %>%
-    distinct()
+  # p <- cowplot::plot_grid(p1, p2,
+  #                         rel_widths = c(1, 2.5),
+  #                         scale = 0.95,
+  #                         labels = "AUTO")
   
-  pids <- unique(timelines$patient)
-  
-  plot_list <- map(pids, function(x) plot_timelines(x, timelines))
-  
-  p <- cowplot::plot_grid(plotlist = plot_list,
-                          nrow = 1,
-                          labels = "AUTO", scale = 0.9)
-  
-  ggsave("plots/figure_s4.png", p, height = 8.75, width = 17.5, bg = "white")
+  ggsave("plots/figure_s4.png", p2, height = 3.75, width = 10, bg = "white")
   
 }
